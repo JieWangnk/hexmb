@@ -1,0 +1,14 @@
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+application     foamRun;
+solver          movingMesh;
+startTime       0;
+stopAt          endTime;
+endTime         1;
+deltaT          1;
+writeControl    timeStep;
+writeInterval   1;
