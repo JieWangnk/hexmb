@@ -9,10 +9,10 @@ tags:
   - cardiovascular
 authors:
   - name: Jie Wang
-    orcid: 0000-0000-0000-0000   # TODO: replace with your ORCID
+    orcid: 0000-0002-6671-3690
     affiliation: 1
 affiliations:
-  - name: "TODO: your institution, City, Country"
+  - name: "Faculty of Science and Engineering, TS"   # TODO: expand 'TS' to full institution name + City, Country
     index: 1
 date: 18 September 2026
 bibliography: paper.bib
