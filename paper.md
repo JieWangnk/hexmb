@@ -12,7 +12,7 @@ authors:
     orcid: 0000-0002-6671-3690
     affiliation: 1
 affiliations:
-  - name: "Faculty of Science and Engineering, TS"   # TODO: expand 'TS' to full institution name + City, Country
+  - name: "Department of Mechanical and Aerospace Engineering, TS"   # TODO: replace 'TS' with the full university name + City, Country
     index: 1
 date: 18 September 2026
 bibliography: paper.bib
