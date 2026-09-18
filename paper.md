@@ -12,7 +12,7 @@ authors:
     orcid: 0000-0000-0000-0000   # TODO: replace with your ORCID
     affiliation: 1
 affiliations:
-  - name: TODO --- your institution, City, Country
+  - name: "TODO: your institution, City, Country"
     index: 1
 date: 18 September 2026
 bibliography: paper.bib
@@ -21,7 +21,7 @@ bibliography: paper.bib
 # Summary
 
 `hexmb` builds all-hexahedral **O-grid (butterfly)** meshes and writes them
-directly as an OpenFOAM `constant/polyMesh`. An O-grid fills each cross-section
+directly as an OpenFOAM `constant/polyMesh` [@OpenFOAM1998]. An O-grid fills each cross-section
 with a square "H" core block surrounded by four boundary-fitted petal blocks:
 all cells are hexahedra, the boundary is honoured, and there is no point where
 the mesh converges to a singular axis. Because of that, a single O-grid mesh can
