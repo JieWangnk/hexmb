@@ -67,7 +67,8 @@ class TelescopingLVConfig:
     valve_despike: bool = True  # Fourier low-pass the valve-plane rings (remove annulus spikes)
     valve_start: float = 0.45   # taper the de-spike from this fraction up to the valve plane
     valve_modes: int = 8        # circumferential Fourier modes kept at the valve plane
-    surf_smooth: int = 2        # light structured surface smoothing per zone
+    surf_smooth: int = 4        # light structured surface smoothing per zone (4 clears the
+    #                             valve-plane transition skew -> checkMesh Mesh OK; 2 leaves 1 face ~4.05)
 
     # -- valve orifice sectors (degrees, in the e1/e2 base frame) ---------- #
     mitral_deg: tuple = (150.0, 340.0)
