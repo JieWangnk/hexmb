@@ -14,7 +14,7 @@ tapered vessel, and a left-ventricle cavity.
 
 The worked example ships with a reader for **public-domain** left-ventricle
 geometry (Cardiac Atlas Project — Sunnybrook Cardiac Data, CC0), so the whole
-pipeline is reproducible with no private data. See [`docs/DATA.md`](docs/DATA.md).
+pipeline is reproducible with no private data. See [`DATA.md`](DATA.md).
 
 ## What it produces
 
@@ -106,7 +106,7 @@ hexmb verify -o case_pipe
 Writes nothing; reads the case back and runs `checkMesh` (without OpenFOAM it does
 the readback and skips `checkMesh` with a note).
 
-**4. The public LV demo — download a CAP model first (see [`docs/DATA.md`](docs/DATA.md)).**
+**4. The public LV demo — download a CAP model first (see [`DATA.md`](DATA.md)).**
 
 ```bash
 python scripts/cap_to_mesh.py /path/to/SCD0000101_1.model.exnode -o out/lv --stl out/lv_endo.stl
@@ -243,8 +243,8 @@ templates/  tube (pipe/elbow), stl (STL tube), lv (single-region chamber), teles
 cli.py      hexmb pipe | elbow | cap | lv | stl | verify
 ```
 
-See [`docs/METHODS.md`](docs/METHODS.md) for the formal method description
-(O-grid, sweep, morph, apex ceiling, and the AMI telescoping assembly).
+The method and the story behind it (O-grid, sweep, morph, the apex ceiling, and
+the telescoping assembly) are written up as a Medium article.
 
 The block cell order matches the scaled-Jacobian gate and the OpenFOAM face
 template; faces are oriented geometrically (outward from the cell centroid), so
