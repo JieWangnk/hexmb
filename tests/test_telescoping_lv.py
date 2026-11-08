@@ -2,7 +2,7 @@
 
 Self-contained: builds on a synthetic prolate-spheroid ``surface`` so the zone
 construction (the numpy-only part) is exercised without OpenFOAM. The merge/couple
-path needs OpenFOAM and is exercised by the ``cap_to_mesh`` demo on CAP data.
+path needs OpenFOAM and is exercised by ``hexmb lv --template telescoping`` on a CAP surface.
 """
 import sys
 from pathlib import Path

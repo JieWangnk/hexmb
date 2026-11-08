@@ -183,20 +183,21 @@ cells and a clean `checkMesh`.
 
 In the author's own research the engine underlies a cine-MRI-to-CFD pipeline for
 the moving left ventricle. Its production mesh, a conformal 805,200-cell LV built
-on the `hexmb` O-grid cross-section, block assembly, and `polyMesh` writer (with a
-split-hexahedron transition that is still research code), carries every run of a
-GPU pressure-solve port of OpenFOAM 12 and the comparison of simulated filling
-against each subject's own 4D-flow MRI for two subjects; the same mesh supplied
-the near-wall shell of an overset variant and the moving surface of a
-lattice-Boltzmann model. On that mesh the moving-wall solve runs through the filling phase, the
+with the same O-grid cross-section, split-hexahedron transitions, block assembly
+and `polyMesh` writer that the package now ships as its conformal template,
+carries every run of a GPU pressure-solve port of OpenFOAM 12 and the comparison
+of simulated filling against each subject's own 4D-flow MRI for two subjects; the
+same mesh supplied the near-wall shell of an overset variant and the moving
+surface of a lattice-Boltzmann model. On that mesh the moving-wall solve runs through the filling phase, the
 interval of largest wall motion, with continuity errors near 1e-6 and no apex
 inversion, which is the property the O-grid was built for.
 
-The software is young: first public release 18 September 2026, one author, no
-external users yet. The community-readiness signals in place are an MIT licence,
-continuous integration, a test suite, a contributing guide, a worked example on
-public data, and a stated applicability domain; the split-hexahedron transition
-and a conforming junction mesher are the next items on the public roadmap.
+The software is young: first public release 18 September 2026, version 0.2.0 in
+November 2026, one author, no external users yet. The community-readiness signals
+in place are an MIT licence, continuous integration, a test suite, a contributing
+guide, a worked example on public data, a stated applicability domain and a
+verification page; a conforming junction mesher and a hex-only telescoping
+variant for solid solvers are the next items on the public roadmap.
 
 # AI usage disclosure
 

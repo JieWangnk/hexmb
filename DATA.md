@@ -46,33 +46,37 @@ download. Download the full set (45 subjects) from the link above for a cohort.
 ## Run the demo
 
 ```bash
-# one LV model -> endocardial surface -> STL/CAD -> telescoping hex mesh + quality gate
-python scripts/cap_to_mesh.py /path/to/SCD0000101_1.model.exnode -o out/lv --stl out/lv_endo.stl
+# the bundled subject: 20 phases -> endocardial surfaces -> the same conformal mesh at every
+# phase -> quality gate -> OpenFOAM moving-mesh case (about 45 s on one core)
+hexmb demo -o out --render
 ```
 ```text
-[1] read CAP model: .../SCD0000101_1.model.exnode
-    endocardial surface (40, 56, 3)  mid-radius ~28 mm
-[2] wrote CAD surface: out/lv_endo.stl  (4368 triangles, mm)
-[3] mesh with hexmb (telescoping: coarse apex / fine body / coarse base)
-    zone apex :    12617 cells  min scaled-Jac +0.391  (valid)
-    zone body :    26796 cells  min scaled-Jac +0.612  (valid)
-    zone base :    31900 cells  min scaled-Jac +0.616  (valid)
-[4] wrote telescoping polyMesh under out/lv  (AMI-coupled)
+demo: Cardiac Atlas SCD0000101, 20 phases (CC0), template conformal
+  wrote out/lv_endo_phase1.stl (4368 triangles, mm)
+  template conformal: 14688 cells per phase, inlet rule 'sectors'
+  phase  0  volume  172.7 mL  min cell vol +1.671e+00 mm3  failing cells 0
+  phase  1  volume  166.8 mL  min cell vol +1.652e+00 mm3  failing cells 0
+  ...
+  phase  8  volume  123.1 mL  min cell vol +1.116e+00 mm3  failing cells 0
+  ...
+  phase 19  volume  173.1 mL  min cell vol +1.645e+00 mm3  failing cells 0
+  reference phase 8 (t 0.4000 s, 123.1 mL); EDV 173.1  ESV 123.1 mL  EF 29 %  -> VALID
+  wrote out/lv_moving: constant/polyMesh at phase 8, 29 wantedDisplacement time folders (t 0 to 1.4), motion_quality.csv
+  done: out/lv_moving is an OpenFOAM 12 case (foamRun -solver movingMesh runs the cycle)
 ```
-
-`hexmb cap --exnode /path/to/SCD0000101_1.model.exnode -o out/lv --stl out/lv_endo.stl`
-does the same thing from the CLI.
 
 What it creates:
 
-- **`out/lv_endo.stl`** — the endocardial blood-pool surface as a CAD file (mm).
-- **`out/lv/`** — the telescoping case: zone meshes `apex/`, `body/`, `base/`, with
-  `out/lv/apex/` the merged master carrying the AMI couplings (open `out/lv/apex` in
-  ParaView). Patches are `wall` / `inlet` (mitral) / `outlet1` (aortic).
+- **`out/lv_endo_phase1.stl`** — the endocardial blood-pool surface of the first phase as a CAD file (mm).
+- **`out/lv_moving/`** — the moving-mesh case: `constant/polyMesh` at the reference phase
+  (end-systole), one `wantedDisplacement` point field per phase time, `motion_quality.csv`
+  with one quality row per phase. Patches are `wall` / `inlet` (mitral) / `outlet1` (aortic).
+- **`out/demo.png`** (with `--render`) — the heart at its largest and smallest cavity and the volume curve.
 
-`checkMesh -constant` on the assembled mesh reports **Cell volumes OK** (zero
-negative-volume cells); a face or two may sit just over the skewness flag at the
-curved zone transition, which the FV skewness-corrected schemes tolerate.
+`hexmb cap --exnode /path/to/SCD0000101_1.model.exnode -o out/lv --stl out/lv_endo.stl`
+meshes a single downloaded model the same way, and `--template telescoping` on `hexmb lv`
+or `hexmb cap` builds the older AMI-coupled three-zone variant (static meshes; needs
+OpenFOAM 12 to assemble the couplings).
 
 ## The whole Sunnybrook cohort through hexmb 0.2 (8 November 2026)
 

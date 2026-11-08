@@ -20,17 +20,18 @@ with no private data and no download: `hexmb demo`. See [`DATA.md`](DATA.md).
 ## What it produces
 
 <p align="center">
-  <img src="examples/img/lv_moving_mesh.gif" width="46%" alt="Telescoping LV mesh morphing through the cardiac cycle (long-axis cut)" />
-  <img src="examples/img/lv_telescoping_cut.png" width="46%" alt="Telescoping LV long-axis cut: coarse apex / fine body / coarse base + butterfly core" />
+  <img src="examples/img/lv_motion_slice.gif" width="34%" alt="Conformal LV mesh morphing through the cardiac cycle (long-axis cut)" />
+  <img src="examples/img/lv_conformal_cut.png" width="40%" alt="Conformal split-hex LV at end-diastole, long-axis cut: coarse apex cap, 2x-finer body, coarse valve cap, butterfly core" />
 </p>
 <p align="center">
   <img src="examples/img/pipe.png" width="30%" alt="Pipe O-grid mesh with butterfly core cap" />
   <img src="examples/img/lv_endo_stl.png" width="30%" alt="CAP endocardial blood-pool surface as an STL/CAD file" />
 </p>
 
-<p align="center"><em>Left to right, top to bottom: the telescoping LV mesh morphing through the 20 CAP
-cardiac phases (one iso-topological mesh, no remeshing); its long-axis cut (coarse apex / fine body /
-coarse base + butterfly core); a pipe O-grid (note the butterfly core cap, no polar axis); and the
+<p align="center"><em>Left to right, top to bottom: the conformal LV mesh of the bundled heart morphing through
+its 20 cardiac phases (one iso-topological mesh, no remeshing); the same mesh cut along the long axis at
+end-diastole (coarse apex cap, 2x-finer body, coarse valve cap, butterfly core, 2:1 split-hex transitions
+at the two zone boundaries); a pipe O-grid (note the butterfly core cap, no polar axis); and the
 endocardial CAD surface the mesh is built from. All in <a href="examples/">examples/</a>.</em></p>
 
 <p align="center">

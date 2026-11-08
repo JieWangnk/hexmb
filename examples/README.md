@@ -13,11 +13,14 @@ Ready-made results so you can see what hexmb produces without running anything.
 ## Reference renders (`img/`)
 
 - `pipe.png` — the pipe mesh; note the square butterfly core + petal blocks on the end cap (no polar axis).
-- `lv_telescoping_cut.png` — a long-axis cut of the telescoping LV mesh: coarse apex cap, fine body, coarse base cap, butterfly core.
-- `lv_moving_mesh.gif` — the **moving mesh**: the telescoping LV rebuilt at each of the 20 CAP cardiac phases, fixed camera, so the same-topology mesh deforms through the beat (contracts at systole, refills). This is what hexmb is for — one iso-topological mesh morphing over the cycle, no remeshing.
+- `lv_conformal_cut.png` — a long-axis cut of the conformal split-hex LV mesh of the bundled heart at
+  end-diastole (the default 14,688-cell template): coarse apex cap, 2x-finer body, coarse valve cap,
+  butterfly core, and the 2:1 split-hex transitions at the two zone boundaries.
 - `lv_endo_stl.png` — the `lv_endo.stl` surface.
 - `lv_demo_cycle.png` — what `hexmb demo --render` writes: the bundled heart at its largest and smallest cavity and the volume curve, every phase passing the gate.
-- `lv_motion_slice.png` / `.gif` — `hexmb render`: long-axis cut of the moving mesh through the cycle (the per-phase STL route on the bundled heart).
+- `lv_motion_slice.png` / `.gif` — `hexmb render`: long-axis cut of the **moving mesh** through the
+  cycle (the per-phase STL route on the bundled heart): the same-topology mesh contracts at systole and
+  refills, with no remeshing. This is what hexmb is for.
 - `sunnybrook_cohort.png`, `sunnybrook_fill_SCD0003201.png` — the 45-subject Cardiac Atlas cohort and the one filled phase (`DATA.md`).
 - `synthetic_masks.png` — the mask readers against the exact surface at three scanner resolutions (`docs/VERIFICATION.md`).
 - `verification_refinement.png` — the three-level refinement of the bundled heart: cavity volume per phase, volume error against cell count, valve flow and peak speed of the flow runs (`docs/VERIFICATION.md`).
@@ -28,16 +31,16 @@ Ready-made results so you can see what hexmb produces without running anything.
 # the pipe case
 hexmb pipe --length 100 --radius 10 -o examples/pipe
 
-# the CAP surface + the full telescoping LV mesh (needs a CAP download + OpenFOAM 12)
-python scripts/cap_to_mesh.py /path/to/SCD0000101_1.model.exnode -o out/lv --stl examples/lv_endo.stl
+# the bundled heart (20 phases, CC0): every phase meshed, gated, written as a moving-mesh case,
+# plus the end-diastolic surface as an STL (lv_endo.stl is this file for phase 1)
+hexmb demo -o out --render
+
+# the AMI-coupled telescoping variant of one phase (static meshes only; needs OpenFOAM 12 to assemble)
+hexmb lv --surface out/lv_endo_phase1.stl --template telescoping -o out/lv_ami
 ```
 
-The full telescoping LV mesh itself is not shipped (it is large and needs OpenFOAM
-12 to assemble the AMI couplings); `scripts/cap_to_mesh.py` builds it in a few
-seconds once you have a CAP model — see [`../DATA.md`](../DATA.md).
-
-A whole subject (20 phases, CC0) now ships inside the package: `hexmb demo -o out` meshes
-every phase and writes the moving-mesh case with no download (see `hexmb/data/cap/README.md`).
+The moving-mesh case is not shipped (it is large); `hexmb demo` writes it in about
+a minute with no download (see `hexmb/data/cap/README.md` and [`../DATA.md`](../DATA.md)).
 
 `hexmb render -o <case> --gif motion.gif --png strip.png` draws a long-axis cut of a
 moving-mesh case through the cycle (`examples/img/lv_motion_slice.png` / `.gif`);

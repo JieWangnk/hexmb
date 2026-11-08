@@ -6,7 +6,7 @@ again -- if the source file disappears (leaving only a .pyc), or if the public
 API drifts from what the telescoping-mesh callers rely on.
 
 They do NOT invoke OpenFOAM (the numpy-only test env has none); the functional
-merge/couple/check path is exercised by the ``cap_to_mesh`` demo on CAP data.
+merge/couple/check path is exercised by ``hexmb lv --template telescoping`` on a CAP surface.
 """
 import inspect
 
