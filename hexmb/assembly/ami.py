@@ -28,7 +28,6 @@ lost in a repository cleanup; it reproduces the recorded coupling behaviour (e.g
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -42,15 +41,9 @@ def _of(case, cmd):
                           capture_output=True, text=True)
 
 
-def _fm():
-    """The betaFlow polyMesh reader (points/faces/boundary/labels/fields)."""
-    sys.path.insert(0, str(Path.home() / "GitHub" / "betaFlow" / "tools"))
-    import foam_mesh as fm
-    return fm
-
-
 def _read_boundary(case):
-    return _fm().read_boundary(Path(case) / "constant" / "polyMesh" / "boundary")
+    from ..io.foam import read_boundary
+    return read_boundary(Path(case) / "constant" / "polyMesh" / "boundary")
 
 
 class HybridAssembler:
@@ -114,11 +107,10 @@ class HybridAssembler:
     def _check_pairs(self, pairs):
         """Warn/report whether each pair is coincident (gap < 3 mm) and
         anti-parallel (facing normals, dot < -0.3) -- the coupling requirement."""
-        fm = _fm()
+        from ..io.foam import read_boundary, read_polymesh
         pm = self.case / "constant" / "polyMesh"
-        boundary = fm.read_boundary(pm / "boundary")
-        points = fm.read_points(pm / "points")
-        faces = fm.read_faces(pm / "faces")
+        boundary = read_boundary(pm / "boundary")
+        points, faces, _, _ = read_polymesh(pm)
         for a, b in pairs:
             for p in (a, b):
                 if p not in boundary:
@@ -221,10 +213,10 @@ class HybridAssembler:
 
     def _flow_field(self):
         import glob
-        fm = _fm()
+        from ..io.foam import read_internal_field
         times = sorted(glob.glob(str(self.case / "[0-9]*")))
         td = Path(times[-1]) if times else self.case / "0"
-        U = fm.read_internal_field(td / "U", 3)
+        U = read_internal_field(td / "U", 3)
         mag = np.linalg.norm(U, axis=1) if U.ndim == 2 else np.abs(U)
         frac = float((mag > 1e-4).mean())
         print(f"    potentialFoam: {100 * frac:.0f}% of cells flowing, mean |U| {mag.mean():.3g} m/s")

@@ -8,7 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
-__all__ = ["read_polymesh", "read_point_field", "controldict_value", "case_time_dirs"]
+__all__ = ["read_polymesh", "read_boundary", "read_point_field", "read_internal_field",
+           "controldict_value", "case_time_dirs"]
 
 
 def _body(path):
@@ -28,6 +29,40 @@ def read_polymesh(pm):
     owner = np.array([int(v) for v in _body(pm / "owner").split()])
     neigh = np.array([int(v) for v in _body(pm / "neighbour").split()])
     return pts, faces, owner, neigh
+
+
+def read_boundary(path):
+    """``{patch: {"type": str, "nFaces": int, "startFace": int, ...}}`` from a
+    ``constant/polyMesh/boundary`` file (ASCII), in file order.  Other entries
+    (``inGroups``, ``neighbourPatch``, ``transform`` ...) are kept as strings."""
+    txt = Path(path).read_text()
+    txt = txt[txt.index("}") + 1:]                           # drop the FoamFile header
+    out = {}
+    for m in re.finditer(r"(\w+)\s*\{([^{}]*)\}", txt):
+        d = {}
+        for ln in m.group(2).split(";"):
+            parts = ln.split(None, 1)
+            if len(parts) == 2:
+                k, v = parts[0], parts[1].strip()
+                d[k] = int(v) if k in ("nFaces", "startFace") else v
+        out[m.group(1)] = d
+    return out
+
+
+def read_internal_field(path, ncomp=3):
+    """The ``internalField nonuniform List<...>`` of a volume field file:
+    ``(n, ncomp)`` for a vector field, ``(n,)`` for a scalar (``ncomp=1``).
+    A ``uniform`` field has no per-cell list and raises ``ValueError``."""
+    txt = Path(path).read_text()
+    i0 = txt.index("internalField")
+    if "nonuniform" not in txt[i0: txt.index("\n", i0)]:
+        raise ValueError(f"{path}: internalField is uniform; there is no per-cell list to read")
+    i = txt.index("(\n", i0)
+    j = txt.index("\n)", i)
+    rows = [ln.strip("() ") for ln in txt[i + 2:j].splitlines() if ln.strip()]
+    if ncomp == 1:
+        return np.array([float(r) for r in rows])
+    return np.array([[float(v) for v in r.split()] for r in rows])
 
 
 def read_point_field(path):

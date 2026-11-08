@@ -1,8 +1,8 @@
 """O-grid assembly + single-region LV template tests on a synthetic prolate LV.
 
 Self-contained (no data files): the single O-grid over the whole cavity is the
-baseline the telescoping template improves on. The deep polyMesh readback needs
-the sibling betaFlow reader and is skipped where it is absent.
+baseline the telescoping template improves on; the exported polyMesh is read
+back with hexmb's own reader and every cell is checked to close.
 """
 import sys
 from pathlib import Path
@@ -44,21 +44,15 @@ def test_lv_template_export_patches(tmp_path):
     nb = sum(p[1] for p in info["patches"])
     assert nb == info["nFaces"] - info["nInternalFaces"]
 
-    # optional deep check: read the exported polyMesh back and confirm cells close
-    tools = Path.home() / "GitHub" / "betaFlow" / "tools"
-    if not (tools / "foam_mesh.py").exists():
-        return
-    sys.path.insert(0, str(tools))
-    import foam_mesh as fm
+    # read the exported polyMesh back and confirm every cell closes
+    from hexmb.io.foam import read_polymesh
+    from hexmb.services.quality import _face_geometry
 
     pm = tmp_path / "constant" / "polyMesh"
-    pts = fm.read_points(pm / "points")
-    faces = fm.read_faces(pm / "faces")
-    owner = fm.read_labels(pm / "owner")
-    neigh = fm.read_labels(pm / "neighbour")
+    pts, faces, owner, neigh = read_polymesh(pm)
     assert len(pts) == info["nPoints"]
     assert np.all(owner[: len(neigh)] < neigh)
-    sf, _ = fm.face_area_vectors(pts, faces)
+    _, sf = _face_geometry(pts, faces)
     cell_sf = np.zeros((info["nCells"], 3))
     np.add.at(cell_sf, owner, sf)
     np.add.at(cell_sf, neigh, -sf[: len(neigh)])

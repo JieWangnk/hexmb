@@ -67,28 +67,26 @@ def test_two_block_dedup_and_export(tmp_path):
     assert info["nInternalFaces"] > 0
     assert info["nCells"] == 16
 
-    # readback round-trip
-    sys.path.insert(0, str(Path.home() / "GitHub" / "betaFlow" / "tools"))
-    import foam_mesh as fm
+    # readback round-trip with hexmb's own reader
+    from hexmb.io.foam import read_boundary, read_polymesh
+    from hexmb.services.quality import _face_geometry
 
     pm = tmp_path / "constant" / "polyMesh"
-    pts = fm.read_points(pm / "points")
-    faces = fm.read_faces(pm / "faces")
-    owner = fm.read_labels(pm / "owner")
-    neigh = fm.read_labels(pm / "neighbour")
-    bnd = fm.read_boundary(pm / "boundary")
+    pts, faces, owner, neigh = read_polymesh(pm)
+    bnd = read_boundary(pm / "boundary")
     assert len(pts) == 45
     assert len(owner) == len(faces)
     assert len(neigh) == info["nInternalFaces"]
     # owner < neighbour on all internal faces
     assert np.all(owner[: len(neigh)] < neigh)
     # closed cells: sum of signed area vectors per cell ~ 0
-    sf, cf = fm.face_area_vectors(pts, faces)
+    _, sf = _face_geometry(pts, faces)
     cell_sf = np.zeros((info["nCells"], 3))
     np.add.at(cell_sf, owner, sf)
-    np.add.at(cell_sf[: 0 + info["nCells"]], neigh, -sf[: len(neigh)])
+    np.add.at(cell_sf, neigh, -sf[: len(neigh)])
     assert np.abs(cell_sf).max() < 1e-9, f"open cells, max |sum Sf| = {np.abs(cell_sf).max()}"
-    assert set(bnd) == {"wall"}
+    assert set(bnd) == {"wall"} and bnd["wall"]["type"] == "wall"
+    assert bnd["wall"]["nFaces"] == info["nFaces"] - info["nInternalFaces"]
 
 
 if __name__ == "__main__":

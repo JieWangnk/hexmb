@@ -114,6 +114,9 @@
   truncated `.exelem` and a case path with a space in `hexmb verify` all end
   in a one-line error (OpenFOAM itself refuses a path with a space; `verify`
   now says so).
+- `hexmb.io.foam` gained `read_boundary` and `read_internal_field`; the tests
+  and the AMI assembler use these instead of a reader from a sibling repository
+  on the author's machine, which is what made the CI run fail on a clean runner.
 - Tests: 74 (`tests/test_export_flow.py`: metrics against hand-computed cells,
   openness and the > 70 deg count, VTU round trip, Abaqus writer, flow-case
   windows; a slice-reader test on a synthetic thick-slice stack; the filled
