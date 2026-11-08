@@ -44,8 +44,8 @@ smallest cavity and the volume curve over the 20 phases, every phase passing the
 
 | Track | What it does | Status |
 |---|---|---|
-| **Engine** — swept tubes + single chamber | O-grid meshes for a pipe, bend, tapered/STL vessel, or a heart chamber; near-wall boundary layers; whole-cycle rebuild by transfinite-interpolation resurfacing | **Validated.** `checkMesh`-clean; the LV rebuilds across the cardiac cycle with 0 inverted cells; assembly vectorised to millions of cells. |
-| **Conformal telescoping LV** — multi-resolution, one region | Coarse apex cap + 2x-finer body + coarse valve cap joined by conformal split-hex 2:1 transitions: ONE flux-conservative region, no interpolated coupling | **Validated.** The mesh behind the moving-ventricle CFD runs that were compared with 4D-flow MRI; `checkMesh` Mesh OK at end-diastole and end-systole on the bundled heart. |
+| **Engine** — swept tubes + single chamber | O-grid meshes for a pipe, bend, tapered/STL vessel, or a heart chamber; near-wall boundary layers; whole-cycle rebuild by transfinite-interpolation resurfacing | **Verified.** `checkMesh`-clean; the LV rebuilds across the cardiac cycle with 0 inverted cells; assembly vectorised to millions of cells. |
+| **Conformal telescoping LV** — multi-resolution, one region | Coarse apex cap + 2x-finer body + coarse valve cap joined by conformal split-hex 2:1 transitions: ONE flux-conservative region, no interpolated coupling | **Verified.** `checkMesh` Mesh OK at end-diastole and end-systole on the bundled heart; three-level refinement with grid-convergence indices in [docs/VERIFICATION.md](docs/VERIFICATION.md); in production use as the mesh behind the author's moving-ventricle CFD runs. |
 | **Bring your own surface** | STL/OBJ/PLY/OFF, VTK/VTP/VTU, NIfTI mask (thick-slice stack or isotropic), Cardiac Atlas model, saved grid -> the ring grid, with automatic apex/base landmarks | **Working.** The STL route reproduces the model route's cavity volume on the bundled heart to 0.1 %; synthetic masks at scanner resolution come back within 1-3 % of the exact surface ([docs/VERIFICATION.md](docs/VERIFICATION.md)); please report what your own surfaces do. |
 | **Moving mesh** | Per-phase surfaces -> the same mesh rebuilt at every phase, gated, written as an OpenFOAM 12 `interpolator` case | **Working.** The bundled heart runs through `foamRun -solver movingMesh` with positive volumes at every written time. |
 | **Quality metrics, export, flow case** | checkMesh-style non-orthogonality / skewness / aspect ratio computed without OpenFOAM; VTK (`.vtu` per phase + `.pvd`) and Abaqus `.inp` export; a wall-driven `incompressibleFluid` flow case on the moving mesh | **Working.** Metrics match `checkMesh` to the printed precision; the flow case runs on the bundled heart at three mesh levels ([docs/VERIFICATION.md](docs/VERIFICATION.md)). |
@@ -366,22 +366,38 @@ the body is refined axially rather than circumferentially.
 
 ## Related tools, and what is different here
 
-Cut-cell and hex-dominant meshers (`snappyHexMesh`, cfMesh) mesh one static
-surface and need a remesh per phase; blocking tools (`blockMesh`, Gmsh
-transfinite blocks, ICEM, Pointwise) build O-grids from a hand-made block
-layout; the cardiac image-to-mesh chains (SimVascular, VMTK, meshtool) give
-tetrahedral or hybrid meshes. Closest in spirit are the template models of
-cardiac modelling: the Cardiac Atlas Project fits one 16-element cubic-Hermite
-left-ventricle template to every subject and phase, and Lamata et al. (Medical
-Image Analysis 2011) warp a cubic-Hermite template mesh to a segmentation by
-image registration. Those are coarse wall models for mechanics and atlases
-whose topology is the template's; `hexmb` reads such a model as one of its
-inputs and builds the flow mesh of the cavity inside it at any resolution,
-gated, with the metrics, the export and the flow case a CFD study needs, and
-the same construction accepts a raw segmentation mask or an STL. The
-verification evidence (three-level refinement with the exact answer known,
-grid-convergence indices, synthetic-mask reader test) is in
-[docs/VERIFICATION.md](docs/VERIFICATION.md).
+A structured hexahedral LV mesh moved as one body is an old idea: Imperial
+College built one per MRI phase from 24 hand-made blocks (Long et al., Proc
+IMechE H 2008) and Karlsruhe projected two O-grids onto the apex (Schenkel et
+al., Ann Biomed Eng 2009), and both groups left it for tetrahedra with
+remeshing or immersed boundaries because the blocking was manual in a
+commercial tool, quality could not be held above a few hundred thousand cells,
+and valve detail was lost. The groups that publish image-based LV CFD today
+move tetrahedra by a lifting equation (lifex, CARP, OasisMove, svFSI), remesh
+them (YALES2BIO, Fluent, CFX), or keep a fixed Cartesian grid (immersed
+boundary). Cut-cell and hex-dominant meshers (`snappyHexMesh`, cfMesh) mesh one
+static surface; blocking tools (`blockMesh`, Gmsh transfinite blocks, ICEM,
+Pointwise) build O-grids from a hand-made block layout; the cardiac image-to-mesh
+chains (SimVascular, VMTK, meshtool) give tetrahedral or hybrid meshes. Closest
+in spirit are the template models of cardiac modelling: the Cardiac Atlas
+Project fits one 16-element cubic-Hermite left-ventricle template to every
+subject and phase; Lamata et al. (Medical Image Analysis 2011) warp a
+cubic-Hermite template mesh to a segmentation by image registration; Canè et
+al. (BioMed Res Int 2018) build structured quadrilateral LV surfaces with the
+same vertices at every phase and list the hexahedral volume as future work;
+Kong and Shadden (IEEE TMI 2023) learn the deformation of a whole-heart
+template to a patient's images. `hexmb` is the automated, open version of the
+structured route: it reads such a model, a segmentation mask or an STL, builds
+the all-hexahedral flow mesh of the cavity inside it at any resolution with a
+coarse apex cap instead of a tapered pole, rebuilds it with the same
+connectivity at every phase with no lifting equation, gates each phase, and
+writes the OpenFOAM case with the metrics, the export and the flow case a CFD
+study needs. The verification evidence (three-level refinement with the exact
+answer known, grid-convergence indices, synthetic-mask reader test) is in
+[docs/VERIFICATION.md](docs/VERIFICATION.md); it is calculation verification
+only, and no comparison with measured flow or with a tetrahedral mesh on the
+same surfaces is claimed. The full survey behind this paragraph, with
+citations, is in the paper's "State of the field" section (`paper.md`).
 
 ## Roadmap
 

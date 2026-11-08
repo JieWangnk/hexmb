@@ -1,7 +1,16 @@
 # Changelog
 
-## 0.2.0 (unreleased, November 2026)
+## 0.2.0 (8 November 2026)
 
+- **Paper and README state of the field** rewritten from a survey of the
+  moving-LV meshing literature: the 2003-2009 Imperial and Karlsruhe
+  block-structured moving LV meshes and why they were left, the lifting /
+  remeshing / immersed-boundary routes in use today, the two hexahedral LV
+  fluid meshes in print, the fixed-topology surface work (Lim 2014, Canè 2018,
+  Kong and Shadden 2023), and the verification and credibility literature
+  (Santiago 2022, Galappaththige 2022, Pathmanathan 2024, FDA 2023); 25 new
+  bibliography entries. Claims are limited to what the survey supports; the
+  README status labels now read "Verified" (calculation verification only).
 - **VTK and Abaqus export** (`hexmb.io.vtk`, `hexmb export`, `--vtk` on `lv`
   / `motion` / `demo`): any written case becomes `mesh_<time>.vtu` per phase
   (hexahedra and the split-hex transition cells as VTK polyhedra, point

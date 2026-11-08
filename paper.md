@@ -15,7 +15,7 @@ affiliations:
   - name: Department of Mechanical and Aerospace Engineering, University of Manchester, United Kingdom
     index: 1
     ror: 027m9bs27
-date: 18 September 2026
+date: 8 November 2026
 bibliography: paper.bib
 ---
 
@@ -49,27 +49,59 @@ with no private data and no download.
 
 Moving-boundary computational fluid dynamics (CFD) of the cardiac left ventricle
 (LV) needs a volume mesh that stays valid as the cavity deforms through the beat.
-The natural structured mesh --- rings converging to the apex, like lines of
-longitude on a globe --- has a polar-axis singularity: cells at the apex have
-almost no volume and invert once the ventricle contracts. Cut-cell meshers avoid
-the singularity but need per-phase remeshing and give up the near-wall hexahedral
-layers that gradient-based quantities (for example wall shear stress) depend on.
-O-grid / butterfly topologies are standard in structured grid generation
-[@Thompson1999]. What has been missing is open tooling that *constructs* such a
-mesh from a measured surface, *morphs* it through a cardiac cycle as one mesh,
-and exports it straight to OpenFOAM.
+Three routes are in use. Arbitrary Lagrangian-Eulerian (ALE) solvers keep one
+tetrahedral mesh and spread the wall displacement into the interior by solving a
+lifting equation; the cells near the apex and the valve plane degrade as the
+cavity closes, and the pressure solver needs more iterations as the cycle goes on
+[@Karabelas2018]. Remeshing solvers rebuild the mesh when its quality drops, about
+ten times per cycle in a whole-heart large-eddy simulation, and interpolate the
+solution across each rebuild [@Chnafa2014; @Bavo2016]. Immersed-boundary solvers
+keep a fixed Cartesian grid and represent the wall through a forcing term, which
+removes mesh motion at the cost of a body-fitted near-wall layer [@Mittal2016].
+A structured hexahedral mesh moved as one body is the fourth route. It was built
+for MRI-driven LV flow at Imperial College (24 blocks, about 41,000 hexahedra,
+one mesh per phase with the same blocking) [@Long2003; @Long2008] and at
+Karlsruhe (two O-grids projected onto the apex, about 100,000 cells)
+[@Schenkel2009; @Spiegel2009], and both groups left it: the blocking was built by
+hand in a commercial tool, the mesh quality could not be held above a few hundred
+thousand cells, surface detail near the valves was lost, and remeshing and
+immersed-boundary methods arrived as alternatives.
 
-`hexmb` fills that gap for the growing body of image-driven, prescribed-motion LV
-hemodynamics [@Peighambari2026]. Its users are researchers who have a
-time-resolved endocardial surface (from cine MRI, CT, or a public atlas) and want
-a valid moving hexahedral mesh for an OpenFOAM solver without a commercial
-blocking tool. The same engine serves any single-lumen, star-shaped, genus-0
-geometry (pipes, bends, arteries, single chambers), so it is also a quick source
-of boundary-layer O-grid meshes for verification cases.
+`hexmb` returns to that fourth route with the two obstacles that were about
+tooling removed. O-grid (butterfly) topologies are standard in structured grid
+generation [@Thompson1999]; what no open tool did, as far as the author's survey
+of the field found, is *construct* such a mesh from a measured surface with no
+manual blocking, *rebuild* it with identical connectivity at every phase of the
+cycle, gate every phase, and write the result as an OpenFOAM moving-mesh case.
+Its users are researchers who have a time-resolved endocardial surface (from cine
+MRI, CT, or a public atlas) and want a valid moving hexahedral mesh for an
+OpenFOAM solver, in the growing body of image-driven, prescribed-motion LV
+hemodynamics [@Peighambari2026]. The same engine serves any single-lumen,
+star-shaped, genus-0 geometry (pipes, bends, arteries, single chambers), so it
+is also a quick source of boundary-layer O-grid meshes for verification cases.
 
 # State of the field
 
-Three families of tools touch this problem, and each stops short of it.
+The groups that publish image-based LV CFD today move their fluid meshes in one
+of the three ways above, and almost all of them on tetrahedra: the lifting route
+in lifex [@Fedele2021], CARP [@Karabelas2018], OasisMove [@Kjeldsberg2023] and
+svFSI; the remeshing route in YALES2BIO, Fluent and CFX [@Chnafa2014; @Bavo2016;
+@Khalafvand2012]; the fixed-grid route in the immersed-boundary codes
+[@Mittal2016]. Hexahedral LV fluid meshes appear in two studies, both
+unstructured: a hexahedral core with prism layers in STAR-CCM+ [@Caballero2017]
+and hexahedra obtained by splitting tetrahedra in lifex [@Bennati2023]. The
+fixed-topology idea itself, one surface with the same vertices at every phase so
+that a volume mesh can follow it, is established: a one-to-one vertex
+correspondence was stated as a CFD requirement by Lim et al. [@Lim2014], Canè et
+al. built structured quadrilateral LV surface meshes from CT, MRI and ultrasound
+and listed the hexahedral volume mesh as future work [@Cane2018], and Kong and
+Shadden learn the deformation of a whole-heart template to a patient's images
+for simulation meshes [@Kong2023]. `hexmb` sits at the intersection of three
+bodies of work, a structured hexahedral template, a fixed-topology per-phase
+surface and a moving-mesh CFD case, and that combination has no published
+precedent the author could find.
+
+Three families of tools touch the construction, and each stops short of it.
 Cut-cell and hex-dominant meshers (OpenFOAM's `snappyHexMesh`, cfMesh) mesh a
 static surface; a deforming chamber means remeshing every phase and mapping the
 solution across. Block-structured tools build O-grids: OpenFOAM's `blockMesh`
@@ -81,34 +113,55 @@ grows a structured volume mesh from a structured surface mesh for external
 aerodynamics and writes CGNS, with no closed chamber, no cap, and no OpenFOAM
 path. Morphing libraries such as PyGeM [@Tezzele2021] deform an existing mesh by
 free-form deformation, radial basis functions, or inverse distance weighting and
-do not build one. The cardiac and vascular toolchains --- SimVascular
-[@Updegrove2017], VMTK [@Antiga2008], meshtool [@Neic2020] --- produce
-tetrahedral or hybrid meshes from images and are the right tools for branching
-vessels and electrophysiology; none makes an all-hexahedral O-grid or an
-iso-topological moving mesh. Template-based cardiac modelling comes closest:
-the Cardiac Atlas Project fits one cubic-Hermite left-ventricle template to
-every subject and phase [@Fonseca2011], and Lamata et al. warp a cubic-Hermite
-template mesh to a segmentation by image registration [@Lamata2011]. Those are
-coarse (16 to a few hundred elements) wall models for mechanics and atlases,
-with a mesh topology fixed by the template; `hexmb` reads such a model as one
-of its surface inputs and builds the flow mesh of the cavity inside it, at any
-resolution, with the quality gate and the OpenFOAM export the flow solve needs.
+do not build one; radial-basis-function morphing of an LV mesh through the cycle
+has been shown on its own [@Xu2021]. The cardiac and vascular toolchains ---
+SimVascular [@Updegrove2017], VMTK [@Antiga2008], meshtool [@Neic2020] ---
+produce tetrahedral or hybrid meshes from images and are the right tools for
+branching vessels and electrophysiology; full-hexahedral structured sweeping
+exists for vessels [@DeSantis2011], and none of these makes a moving chamber
+mesh. Template-based cardiac modelling comes closest: the Cardiac Atlas Project
+fits one cubic-Hermite left-ventricle template to every subject and phase
+[@Fonseca2011; @MedranoGracia2013], Lamata et al. warp a cubic-Hermite template
+mesh to a segmentation by image registration and gate it on a Jacobian ratio
+[@Lamata2011; @Lamata2014], and the fixed-topology atlas of Hoogendoorn et al.
+propagates one mesh to every subject and phase [@Hoogendoorn2013]. Those are
+wall models for mechanics and statistics, with a mesh topology fixed by the
+template and, for the Cardiac Atlas and Lamata meshes, 16 to a few hundred
+elements; `hexmb` reads such a model as one of its surface inputs and builds the
+flow mesh of the cavity inside it, at any resolution, with the quality gate and
+the OpenFOAM export the flow solve needs.
 
 `hexmb` is the combination: it constructs the O-grid from a stack of
-cross-sections, morphs it through the cycle, checks it, and writes the OpenFOAM
-`polyMesh`. It contributes to the OpenFOAM ecosystem in place of competing with
-it: the output is native, `checkMesh` is the verification step, and the
-telescoping assembly uses OpenFOAM's own non-conformal coupling
-[@FarrellMaddison2011]. The morphing step uses the standard radial-basis-function
-formulation [@deBoer2007] and the quality gate the standard scaled Jacobian
-[@Knupp2001] for hexahedra and signed face-pyramid volumes for the split-hex
-polyhedra; the contribution is the construction and the pipeline around them.
-The repository carries its own calculation-verification evidence in the sense
-of ASME V&V 40 [@ASME2018]: a three-level refinement of the bundled heart with
-the exact cavity volume known, grid-convergence indices after Celik et al.
-[@Celik2008] for the volume, the valve flow and the kinetic energy of a
-wall-driven flow solve on each mesh, and a synthetic-mask test of the readers
-(`docs/VERIFICATION.md`).
+cross-sections, rebuilds it through the cycle, checks it, and writes the
+OpenFOAM `polyMesh`. Most of its parts are known ideas: O-grid blocking (the
+Karlsruhe grids projected two O-grids onto the apex), conformal 2:1 hexahedral
+transitions, smooth node trajectories in time (Karlsruhe used Bézier curves,
+Imperial cubic splines), Jacobian-type quality gating, and the Richardson/GCI
+procedure. What is new is the automated open construction, the coarse apex cap
+where the Imperial and Karlsruhe grids tapered to a point, the conformal
+split-hex transitions that let the body carry the cell budget, the absence of
+any lifting equation, and the OpenFOAM delivery. It contributes to the OpenFOAM
+ecosystem in place of competing with it: the output is native, `checkMesh` is
+the verification step, and the telescoping assembly uses OpenFOAM's own
+non-conformal coupling [@FarrellMaddison2011]. The morphing step uses the
+standard radial-basis-function formulation [@deBoer2007] and the quality gate
+the standard scaled Jacobian [@Knupp2001] for hexahedra and signed face-pyramid
+volumes for the split-hex polyhedra.
+
+The repository carries calculation-verification evidence, which is one of the
+evidence categories of ASME V&V 40 [@ASME2018] and of the FDA guidance on
+computational modelling in device submissions [@FDA2023], and it is only that: a
+three-level refinement of the bundled heart with the exact cavity volume known,
+grid-convergence indices after Celik et al. [@Celik2008] for the volume, the
+valve flow and the kinetic energy of a wall-driven flow solve on each mesh, and a
+synthetic-mask test of the readers (`docs/VERIFICATION.md`). Validation against
+measured flow, uncertainty quantification and a tetrahedral comparison on the
+same surfaces are outside the package and are not claimed. Among published
+moving-wall LV studies, one reports a grid-convergence index [@Santiago2022];
+the credibility literature asks for a discretisation study on every new patient
+and on several virtual patients of a cohort [@Galappaththige2022;
+@Pathmanathan2024], which a generator that ships its refinement study as a
+command can supply.
 
 # Software design
 
