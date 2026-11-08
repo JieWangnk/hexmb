@@ -3,16 +3,26 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hex-multiblock"
-version = "0.1.0"
-description = "General multi-block structured hexahedral (O-grid/butterfly) mesh engine with OpenFOAM export and RBF morphing."
+name = "hexmb"
+version = "0.2.0"
+description = "Structured O-grid (butterfly) all-hex mesh engine for tubes and beating heart chambers, with OpenFOAM export and moving-mesh cases."
+readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-dependencies = ["numpy>=1.23"]
+authors = [{name = "Jie Wang"}]
+keywords = ["mesh", "hexahedral", "O-grid", "OpenFOAM", "CFD", "left ventricle", "moving mesh"]
+dependencies = ["numpy>=1.23", "scipy>=1.9"]
+
+[project.urls]
+Repository = "https://github.com/JieWangnk/hexmb"
 
 [project.optional-dependencies]
 scipy = ["scipy>=1.9"]
-stl = ["trimesh>=3.20"]
+surface = ["trimesh>=3.20", "rtree>=1.0", "meshio>=5.0"]
+stl = ["trimesh>=3.20", "rtree>=1.0"]
+image = ["nibabel>=5.0", "scikit-image>=0.21"]
+render = ["matplotlib>=3.6"]
+all = ["trimesh>=3.20", "rtree>=1.0", "meshio>=5.0", "nibabel>=5.0", "scikit-image>=0.21", "matplotlib>=3.6"]
 dev = ["pytest>=7"]
 
 [project.scripts]
@@ -21,8 +31,15 @@ hexmb = "hexmb.cli:main"
 [tool.setuptools.packages.find]
 include = ["hexmb*"]
 
+[tool.setuptools.package-data]
+hexmb = ["data/cap/README.md", "data/cap/*.exelem", "data/cap/SCD0000101/*.exnode"]
+
 [tool.black]
 line-length = 100
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests", "."]

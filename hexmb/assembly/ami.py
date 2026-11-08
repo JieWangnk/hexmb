@@ -136,7 +136,7 @@ class HybridAssembler:
     def check(self):
         """Run ``checkMesh`` on the merged mesh and return the notable result
         lines as an ordered ``{label: line}`` dict (cell/region counts, volumes,
-        skewness, non-orthogonality, and the Mesh OK / Failed verdict)."""
+        skewness, non-orthogonality, and the Mesh OK / Failed result)."""
         out = _of(self.case, "checkMesh -constant").stdout
         wanted = ("cells:", "Number of regions", "Min volume", "Max skewness",
                   "Max aspect ratio", "non-orthogonality", "Mesh OK", "Failed")

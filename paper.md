@@ -33,12 +33,17 @@ iso-topological mesh, with no remeshing between phases.
 The engine is one operation applied to different inputs: sweeping a butterfly
 cross-section along a stack of rings builds a straight pipe, a bend, a tapered
 vessel, or a heart chamber. A *telescoping* variant joins coarse apex and valve
-caps to a fine body through non-conformal interfaces, so the body can carry the
-cell budget while the closing regions stay coarse enough to survive the
-contraction. `hexmb` ships with a reader for public Cardiac Atlas Project
-left-ventricle finite-element models [@Fonseca2011; @Radau2009], so the whole
-path from a public, CC0-licensed heart geometry to a checked hexahedral mesh is
-reproducible with no private data.
+caps to a 2x-finer body, either through conformal split-hex 2:1 transitions (one
+flux-conservative region, the route used for moving-ventricle CFD) or through
+non-conformal interfaces, so the body can carry the cell budget while the
+closing regions stay coarse enough to survive the contraction. Any endocardial
+surface can be the input: a surface mesh (STL, OBJ, PLY, VTK), a segmentation
+mask, or a Cardiac Atlas Project left-ventricle model [@Fonseca2011;
+@Radau2009]; given one surface per cardiac phase, `hexmb` rebuilds the same mesh
+at every phase, gates each one, and writes the moving-mesh OpenFOAM case. One
+CC0-licensed Cardiac Atlas subject ships inside the package, so the whole path
+from a public heart geometry to a checked moving hexahedral mesh is reproducible
+with no private data and no download.
 
 # Statement of need
 
@@ -80,7 +85,14 @@ do not build one. The cardiac and vascular toolchains --- SimVascular
 [@Updegrove2017], VMTK [@Antiga2008], meshtool [@Neic2020] --- produce
 tetrahedral or hybrid meshes from images and are the right tools for branching
 vessels and electrophysiology; none makes an all-hexahedral O-grid or an
-iso-topological moving mesh.
+iso-topological moving mesh. Template-based cardiac modelling comes closest:
+the Cardiac Atlas Project fits one cubic-Hermite left-ventricle template to
+every subject and phase [@Fonseca2011], and Lamata et al. warp a cubic-Hermite
+template mesh to a segmentation by image registration [@Lamata2011]. Those are
+coarse (16 to a few hundred elements) wall models for mechanics and atlases,
+with a mesh topology fixed by the template; `hexmb` reads such a model as one
+of its surface inputs and builds the flow mesh of the cavity inside it, at any
+resolution, with the quality gate and the OpenFOAM export the flow solve needs.
 
 `hexmb` is the combination: it constructs the O-grid from a stack of
 cross-sections, morphs it through the cycle, checks it, and writes the OpenFOAM
@@ -89,7 +101,14 @@ it: the output is native, `checkMesh` is the verification step, and the
 telescoping assembly uses OpenFOAM's own non-conformal coupling
 [@FarrellMaddison2011]. The morphing step uses the standard radial-basis-function
 formulation [@deBoer2007] and the quality gate the standard scaled Jacobian
-[@Knupp2001]; the contribution is the construction and the pipeline around them.
+[@Knupp2001] for hexahedra and signed face-pyramid volumes for the split-hex
+polyhedra; the contribution is the construction and the pipeline around them.
+The repository carries its own calculation-verification evidence in the sense
+of ASME V&V 40 [@ASME2018]: a three-level refinement of the bundled heart with
+the exact cavity volume known, grid-convergence indices after Celik et al.
+[@Celik2008] for the volume, the valve flow and the kinetic energy of a
+wall-driven flow solve on each mesh, and a synthetic-mask test of the readers
+(`docs/VERIFICATION.md`).
 
 # Software design
 
@@ -104,34 +123,52 @@ The second trade-off is the apex. A single O-grid over a whole ventricle inverts
 once the cavity has more than about fifty cells across at end-systole, because
 the apex cells are squeezed by the contraction. The telescoping template answers
 this by building three zones --- a coarse apex cap, a fine body, a coarse base
-cap --- and joining them with non-conformal interfaces, so the body reaches about
-a million cells while the caps stay under the pinch limit. The cost is a
-dependency: assembling the coupled case needs OpenFOAM (`mergeMeshes`,
-`createNonConformalCouples`); the per-zone build and the quality gate need only
-numpy.
+cap --- and joining them either with conformal split-hex transitions or with
+non-conformal interfaces, so the body reaches about a million cells while the
+caps stay under the pinch limit. The conformal join keeps the coarse nodes an
+exact subset of the fine ones (bilinear core, linear petals, subdivided rings),
+so a coarse cell facing the fine body becomes a nine-face split-hex polyhedron
+sharing faces with its four fine neighbours; the cavity is then one region whose
+fluxes are conserved across the transition, which a moving filling solve needs.
+The non-conformal join costs a dependency (assembling the coupled case needs
+OpenFOAM's `mergeMeshes` and `createNonConformalCouples`); the conformal join,
+the per-zone build and the quality gate need only numpy and SciPy.
 
 The third choice is a small, dependency-light core. Block assembly, node
 deduplication by union-find, Coons transfinite interpolation, the scaled-Jacobian
 gate, and the `polyMesh` writer are pure numpy; SciPy is optional and speeds the
 deduplication through connected components, so a boundary-layer pipe of 1.2
 million hexahedra builds in about two seconds on one core and four million in
-about nine. The writer orients every face geometrically, outward from the cell
-centroid, so export is correct whatever the index handedness of a block. For
+about nine. Every cell is emitted with its faces oriented outward, after the
+contour direction has been normalised once, so the signed pyramid volume of
+each face is an absolute test: it is negative for an inverted cell and for a
+cell folded past its centre, two defects an unsigned volume misses and that
+`checkMesh` cannot see once faces have been turned outward for export. For
 motion, two strategies are offered: radial-basis-function interpolation of the
 wall displacement for moderate motion, and *resurfacing* for large deformation,
 which moves the surface and refills the interior by transfinite interpolation;
 each phase is passed through the same validity gate.
 
 The package is organised as `core` (blocks, multi-block mesh, topology,
-transfinite interpolation), `assembly` (butterfly O-grid, sweep, non-conformal
-assembler), `services` (quality, OpenFOAM export, smoothing, morph), `io`
-(Cardiac Atlas Project reader, STL surface export), and `templates` (pipe, elbow,
-STL tube, single-chamber LV, telescoping LV), behind a command-line tool
-(`hexmb pipe|elbow|cap|lv|stl|verify`) and a small Python API. A pytest suite of
-19 tests covers exactness of the transfinite map, two-block deduplication and
-export, the O-grid node-count formula, wall grading and boundary layers, pipe and
-elbow validity, LV patch tagging, the telescoping zones, and the assembler
-interface; it runs in continuous integration on every push. A known failure mode
+transfinite interpolation), `assembly` (butterfly O-grid, sweep, split-hex
+transition and polyhedral writer, non-conformal assembler), `services` (quality,
+OpenFOAM export, smoothing, morph, moving-mesh case writer, figures), `io`
+(Cardiac Atlas Project reader, surface-mesh and mask readers with automatic
+apex/base landmarks, STL surface export), and `templates` (pipe, elbow, STL
+tube, single-chamber LV, conformal telescoping LV, AMI telescoping LV), behind a
+command-line tool (`hexmb pipe|elbow|lv|cap|motion|demo|stl|export|flow|verify|render`)
+and a small Python API. A pytest suite of 74 tests covers exactness of the
+transfinite map and of the split-hex subdivision, two-block deduplication and
+export, the O-grid node-count formula, wall grading and boundary layers, pipe
+and elbow validity, a one-region telescoping tube, LV patch tagging and inlet
+rules, the telescoping zones and the assembler interface, the surface readers
+(STL round trip, closed ellipsoid landmarks, mask to grid, a thick-slice stack
+through the slice reader), the moving-mesh writer (reference phase, zero
+displacement, time folders, spline interpolation of the table so the wall
+velocity is continuous), the checkMesh-style metrics against hand-computed
+cells, the VTK round trip and Abaqus writer, and the flow-case windows; it runs
+in continuous integration on every
+push. A known failure mode
 is documented: a subject-specific base with a strongly non-planar
 valve plane can leave inverted cells at the base cap, and the template then needs
 its core fraction and apex trim re-tuned for that surface.

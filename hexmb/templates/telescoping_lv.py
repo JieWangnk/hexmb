@@ -50,7 +50,8 @@ class TelescopingLVConfig:
     body_levels: int = 64      # body axial levels
     apex_NT: int = 44          # apex cap ring (keep coarse: >~56 pinches at end-systole)
     apex_NR: int = 6
-    apex_levels: int = 40
+    apex_levels: int = 24      # keep the apex axial step above the dome's sideways drift (40 inverts
+    #                            the tip cells on the exact Cardiac Atlas surface, 24 clears it)
     base_NT: int = 88          # valve cap ring (finer than apex -> smoother inlet)
     base_NR: int = 8
     base_levels: int = 30
@@ -61,7 +62,8 @@ class TelescopingLVConfig:
     base_cut: float = 0.98     # cap the base HERE, not at 1.0: the extreme flared tip
     #                            (the last ~2%) is segmentation noise and inverts.
     core_frac: float = 0.42    # O-grid core size (bigger is worse at the caps -- keep 0.42)
-    apex_trim: int = 2         # drop the n most-apical near-zero-radius rings, cap flat
+    apex_trim: int = 4         # drop the n most-apical near-zero-radius rings, cap flat (4 since 0.2.0:
+    #                            the exact CAP reader gives a flatter dome than the old reader did)
 
     # -- per-subject surface tuning ---------------------------------------- #
     valve_despike: bool = True  # Fourier low-pass the valve-plane rings (remove annulus spikes)
