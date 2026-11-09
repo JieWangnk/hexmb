@@ -153,8 +153,14 @@ evidence categories of ASME V&V 40 [@ASME2018] and of the FDA guidance on
 computational modelling in device submissions [@FDA2023], and it is only that: a
 three-level refinement of the bundled heart with the exact cavity volume known,
 grid-convergence indices after Celik et al. [@Celik2008] for the volume, the
-valve flow and the kinetic energy of a wall-driven flow solve on each mesh, and a
-synthetic-mask test of the readers (`docs/VERIFICATION.md`). Validation against
+valve flow and the kinetic energy of a wall-driven flow solve on each mesh, a
+synthetic-mask test of the readers, and a rebuild of the same template at six
+levels from 14,688 to 2,569,728 cells through all 20 phases of the bundled heart
+(`docs/VERIFICATION.md`). In that last study every phase of every level passes
+the gate with identical topology, no face crosses the 70 degree
+non-orthogonality warning and `checkMesh` reports a clean mesh at end-systole,
+so on this subject the few-hundred-thousand-cell quality ceiling that stopped
+the Imperial and Karlsruhe meshes does not appear. Validation against
 measured flow, uncertainty quantification and a tetrahedral comparison on the
 same surfaces are outside the package and are not claimed. Among published
 moving-wall LV studies, one reports a grid-convergence index [@Santiago2022];

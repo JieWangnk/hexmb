@@ -67,27 +67,42 @@ def bundled_phases(n):
     return files[:n]
 
 
+def parse_checkmesh(text):
+    """The numbers of a ``checkMesh`` log: max and average non-orthogonality, max skewness, max
+    aspect ratio, total volume, the final "Mesh OK" / "Failed N mesh checks" line, and ``ran``,
+    which is False when that final line is missing (no ``system/controlDict``, a crash, a
+    missing OpenFOAM) so a silent non-run cannot pass as a clean mesh."""
+    out = {}
+    m = re.search(r"non-orthogonality Max:\s*([\d.e+-]+)\s*average:\s*([\d.e+-]+)", text)
+    if m:
+        out["max_non_orthogonality_deg"], out["average_non_orthogonality_deg"] = float(m.group(1)), float(m.group(2))
+    m = re.search(r"Max skewness = ([\d.e+-]+)", text)
+    if m:
+        out["max_skewness"] = float(m.group(1))
+    m = re.search(r"Max aspect ratio = ([\d.e+-]+)", text)
+    if m:
+        out["max_aspect_ratio"] = float(m.group(1))
+    m = re.search(r"Total volume = ([\d.e+-]+)", text)
+    if m:
+        out["total_volume_m3"] = float(m.group(1).rstrip("."))
+    failed = re.search(r"Failed (\d+) mesh checks", text)
+    out["mesh_ok"] = "Mesh OK" in text
+    out["failed_checks"] = int(failed.group(1)) if failed else 0
+    out["ran"] = bool(out["mesh_ok"] or failed)
+    return out
+
+
 def checkmesh(case_dir):
-    """Max non-orthogonality, max skewness, max aspect ratio and the final "Mesh OK" / "Failed" line of ``checkMesh -constant``."""
+    """Run ``checkMesh -constant`` in the case, keep its output as ``log.checkMesh`` there, and
+    return ``parse_checkmesh`` of it; ``None`` when OpenFOAM is not installed."""
     if not Path(OF_BASHRC).exists():
         return None
     cmd = f"source {OF_BASHRC} 2>/dev/null; cd '{case_dir}' && checkMesh -constant"
     r = subprocess.run(["bash", "-lc", cmd], capture_output=True, text=True)
-    out = {}
-    m = re.search(r"non-orthogonality Max:\s*([\d.e+-]+)\s*average:\s*([\d.e+-]+)", r.stdout)
-    if m:
-        out["max_non_orthogonality_deg"], out["average_non_orthogonality_deg"] = float(m.group(1)), float(m.group(2))
-    m = re.search(r"Max skewness = ([\d.e+-]+)", r.stdout)
-    if m:
-        out["max_skewness"] = float(m.group(1))
-    m = re.search(r"Max aspect ratio = ([\d.e+-]+)", r.stdout)
-    if m:
-        out["max_aspect_ratio"] = float(m.group(1))
-    m = re.search(r"Total volume = ([\d.e+-]+)", r.stdout)
-    if m:
-        out["total_volume_m3"] = float(m.group(1).rstrip("."))
-    out["mesh_ok"] = "Mesh OK" in r.stdout
-    out["failed_checks"] = int(re.search(r"Failed (\d+) mesh checks", r.stdout).group(1)) if "Failed" in r.stdout else 0
+    (Path(case_dir) / "log.checkMesh").write_text(r.stdout + r.stderr)
+    out = parse_checkmesh(r.stdout)
+    if not out["ran"]:
+        print(f"  CHECK: checkMesh did not reach its final line in {case_dir}; see log.checkMesh there", flush=True)
     return out
 
 

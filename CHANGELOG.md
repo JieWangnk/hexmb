@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Quality through the cycle at six levels** (`scripts/quality_through_cycle.py`,
+  `scripts/quality_through_cycle_figures.py`, new section in
+  `docs/VERIFICATION.md`): the conformal template rebuilt through all 20 phases
+  of the bundled heart at 729,708, 1,366,560 and 2,569,728 cells on top of the
+  three published levels. Every one of the 120 phase builds passes the gate
+  with identical topology; the worst non-orthogonality rises from 58.0 to
+  69.99 deg with refinement and no face crosses 70 deg; `checkMesh` is clean at
+  end-systole on all three new levels. Wall nodes keep their circumferential
+  position (tangential slip at the 99th percentile below 0.2 mm). The
+  `checkmesh` helper of `verification_study.py` now keeps `log.checkMesh` in
+  the case and reports `ran: false` when `checkMesh` never reached its final
+  line, which the first run of this study had hidden (no `system/controlDict`).
+
 ## 0.2.0 (8 November 2026)
 
 - **Paper and README state of the field** rewritten from a survey of the

@@ -12,9 +12,11 @@ discretisation puts into the quantities the solver will report, measured on a
 case whose exact answer is known, and the trend of that error with refinement.
 
 Everything below runs on the **bundled CC0 heart** (Cardiac Atlas subject
-SCD0000101, 20 phases) with `scripts/verification_study.py`, so anyone can
-repeat it; the per-run output and the tables are produced by
-`scripts/verification_figures.py` from the study's `results.json`.
+SCD0000101, 20 phases) with `scripts/verification_study.py` (three levels,
+volume and flow) and `scripts/quality_through_cycle.py` (six levels, mesh
+quality at every phase), so anyone can repeat it; the figures and tables are
+produced by `scripts/verification_figures.py` and
+`scripts/quality_through_cycle_figures.py` from the studies' `results.json`.
 
 ## Context of use and quantities of interest
 
@@ -188,6 +190,151 @@ jet are the same on all three; the single bright cell at the edge of the
 mitral opening (bottom right of each panel) is the maximum-speed cell, which
 shrinks and brightens with refinement.*
 
+## Quality through the cycle at six levels
+
+The block-structured LV meshes of Imperial College (2003-2008) and Karlsruhe
+(2009) stopped at a few hundred thousand cells: above that their quality could
+not be held through the contraction, and nodes twisted between phases (the
+state of the field in `paper.md` has the references).  The question they left
+open is whether a body-fitted hexahedral mesh can keep its quality through a
+full contraction without a lifting equation and without remeshing.
+`scripts/quality_through_cycle.py` puts the conformal template to that test on
+the bundled heart.  It carries the three levels above and adds three more under
+the same rule, every direction refined together and nothing set per level or
+per phase; L4 and L6 continue the 1.5x series from L3 and L5 sits between them.
+
+| level | surface NL x NT | ring NT_c / NR_c | levels apex/body/base | cells | points | build per phase | metrics per phase | peak memory |
+|---|---|---|---|---|---|---|---|---|
+| L4 | 135 x 192 | 84 / 14 | 33/102/41 | 729,708 | 747,606 | 119 s | 50 s | 3.3 GB |
+| L5 | 160 x 232 | 104 / 17 | 40/125/50 | 1,366,560 | 1,393,709 | 230 s | 102 s | 6.1 GB |
+| L6 | 200 x 288 | 128 / 21 | 50/153/61 | 2,569,728 | 2,610,886 | 410 s | 195 s | 11.1 GB |
+
+One phase is in memory at a time.  For each of the 20 phases the script records
+the signed-pyramid gate (smallest pyramid, cells with a non-positive pyramid,
+zero-area faces), the checkMesh-style metrics with OpenFOAM's definitions
+(maximum and average non-orthogonality, faces above 70 deg, maximum skewness,
+faces above 4, maximum aspect ratio, and the 50 / 90 / 99 / 99.9 percentiles of
+the per-face values), the cavity volume against the exact Hermite volume, the
+build time and peak memory, and the azimuth of every wall node about the long
+axis relative to end-systole.  The connectivity is taken from the first build
+(end-systole); the cell, point, hexahedron and split-hex counts are compared at
+every phase, and at end-diastole the cell-to-vertex lists and every internal
+face with its owner and neighbour are compared element by element, and the
+boundary faces as a set (the recorded run compared the counts at every level;
+the element-by-element comparison was made at L1 and L4).  The end-systolic mesh of each new level is also
+written as a `polyMesh` and passed
+through `checkMesh`.  Times are with two threads on a laptop; writing the
+end-systolic `polyMesh` took 274, 512 and 917 s (an ASCII writer) and
+`checkMesh` itself 5, 10 and 23 s.  The three new levels took 6.7 h of compute
+in all, run as two jobs side by side.
+
+| level | cells | points | build s / phase | peak RSS GB | worst max non-orth. deg (phase) | faces > 70 deg | worst max skewness | faces > 4 | worst max aspect | min pyramid / mean cell volume | wall-node drift RMS (max) deg | all phases pass | same topology | checkMesh at end-systole |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| L1 | 14,688 | 16,130 | 3 | - | 58.0 (8) | 0 | 2.46 | 0 | 3.6 | 0.018 | - | yes | yes | - |
+| L2 | 54,027 | 57,325 | 11 | - | 63.7 (8) | 0 | 2.87 | 0 | 4.0 | 0.019 | - | yes | yes | - |
+| L3 | 202,860 | 210,675 | 39 | - | 66.8 (8) | 0 | 3.25 | 0 | 4.4 | 0.019 | - | yes | yes | - |
+| L4 | 729,708 | 747,606 | 119 | 3.3 | 68.8 (8) | 0 | 3.63 | 0 | 5.2 | 0.020 | 1.70 (72) | yes | yes | Mesh OK (68.8 deg, skew 3.50) |
+| L5 | 1,366,560 | 1,393,709 | 230 | 6.1 | 69.6 (8) | 0 | 3.77 | 0 | 5.3 | 0.020 | 1.64 (71) | yes | yes | Mesh OK (69.6 deg, skew 3.64) |
+| L6 | 2,569,728 | 2,610,886 | 410 | 11.1 | 70.0 (8) | 0 | 3.75 | 0 | 5.6 | 0.020 | 1.67 (79) | yes | yes | Mesh OK (70.0 deg, skew 3.64) |
+
+L1 to L3 are carried over from the three-level study (built on one thread,
+without the drift columns; their end-systolic and end-diastolic cases were
+`checkMesh`-clean there).  The same-topology column is the count comparison at
+every phase; the element-by-element comparison at end-diastole was run at L1
+and L4.
+
+<p align="center"><img src="../examples/img/quality_through_cycle.png" width="900"></p>
+
+*Six levels through the 20 phases: maximum non-orthogonality with the 70 deg
+line at which `checkMesh` warns, maximum skewness with the 4 line, the smallest
+signed pyramid volume as a fraction of the mean cell volume, and the cavity
+volume against the exact model.  End-systole is phase 8.*
+
+What the 120 phase builds show:
+
+* **Every phase of every level passes the gate.**  No cell has a non-positive
+  pyramid and no face has zero area.  The smallest signed pyramid volume stays
+  between 0.018 and 0.024 of the mean cell volume at every level and phase, a
+  little larger at the fine levels than at L1: the margin is scale-free, so
+  refinement does not eat it.  Its lows are at phase 7, just before
+  end-systole, and at phase 16.
+* **The connectivity is the same at every phase.**  It is generated from the
+  template parameters alone; the cell, point, hexahedron and split-hex counts
+  agree at all 120 builds, and between end-diastole and end-systole the
+  cell-to-vertex lists and all internal faces with their owners and neighbours
+  are identical element by element, and the boundary faces are the same set
+  (checked at L1 and L4).  The one thing that does change with the phase is
+  the label of a few base-cap faces as wall, inlet or outlet, which the valve
+  classifier assigns from the geometry of each phase: at L1, 2 of the 2,088
+  boundary faces carry a different label at end-diastole than at end-systole
+  (wall 1,995 / 1,995, outlet 37 / 38, inlet 56 / 55), and at L4, 52 of the
+  26,082 (wall 24,747 / 24,735, outlet 522 / 551, inlet 813 / 796).  The
+  moving-mesh case takes the labelling of
+  its reference phase, so the written case has one set of patches.
+* **Non-orthogonality creeps up with refinement and stays under 70 deg.**  The
+  worst face is at end-systole at every level: 58.0, 63.7, 66.8, 68.8, 69.6
+  and 69.99 deg.  The increments per 1.5x step shrink (5.7, 3.1, 2.0, 1.2 deg),
+  and none of the 120 builds has a face over the 70 deg line at which
+  `checkMesh` warns (it fails a mesh at 90 deg).  The maximum belongs to a few
+  faces in the apex cap: at L4 the 512 faces over 60 deg (of 2.2 million) all
+  lie within 4 mm of the apex and 6-11 mm from the axis, and the worst face sits
+  2 mm above the apex at a radius of 8 mm, in a plain hexahedron.  At
+  end-systole the median face non-orthogonality is 9.2-9.3 deg, the 99th
+  percentile 36 deg and the 99.9th 51-52 deg at L4, L5 and L6 alike, and the
+  average over all faces stays between 12.8 and 13.4 deg at every level and
+  phase.  A further 1.5x step (about 5.8
+  million cells) would probably put a handful of end-systolic faces just over
+  70 deg on this subject.  That is a `checkMesh` warning the solver's
+  non-orthogonal correctors exist for; 8 of the 45 cohort subjects in
+  `DATA.md` already show it at the default level.
+* **Skewness and aspect ratio are flat.**  Maximum skewness 3.5-3.8 over the
+  cycle at the new levels (the warning is at 4; zero faces above it) with a
+  99.9th percentile of 0.5-0.8; the maximum is a boundary-face value in the
+  same apex region (within 2.5 mm of the apex), and at end-systole on L4 no
+  internal face is above 0.63.  Maximum aspect ratio 5.2-5.6 over the cycle
+  with a 99.9th percentile of 3.0-3.3.
+* **The cavity volume converges.**  The largest error against the exact
+  Hermite volume over the 20 phases falls from 1.61 % at L1 through 0.79, 0.41,
+  0.26 and 0.22 to 0.19 % at L6; it is the inscribed-polygon loss of the volume
+  section, shrinking with the cell size.
+* **`checkMesh` agrees with the built-in metrics.**  Mesh OK at end-systole on
+  L4, L5 and L6, with maximum non-orthogonality 68.7878 / 69.5579 / 69.9869
+  deg, maximum skewness 3.50259 / 3.63539 / 3.64238 and maximum aspect ratio
+  4.86974 / 5.11086 / 5.25476, against 68.7879 / 69.5578 / 69.9871, 3.5026 /
+  3.6354 / 3.6424 and 4.8697 / 5.1109 / 5.2548 from `hexmb`.  (The first pass
+  of the run wrote the cases without a `system/controlDict`, so `checkMesh`
+  exited before its final line and the helper read that as "0 failed checks".
+  The helper now keeps `log.checkMesh` in the case and reports `ran: false`
+  when the final line is missing, the script writes the dictionaries, and the
+  three cases were rerun on the same written meshes.)
+* **Wall nodes keep their circumferential position.**  Imperial and Karlsruhe
+  saw twist between phases.  Here a wall node is placed by ring index and angle
+  in the fixed frame of phase 0, so its azimuth about the long axis should
+  change through the cycle only as much as the sampled surface itself does.
+  `scripts/wall_node_drift.py` measures that node by node against end-systole,
+  on the 4,652 wall nodes of L2 at every phase.  Nodes more than 10 mm from the
+  axis (93 % of them) change azimuth by at most 6.8 deg (RMS 0.20 deg, 99th
+  percentile 0.34 deg), which is the size of the circumferential motion of the
+  Cardiac Atlas surface sample points themselves (RMS 0.2 deg, maximum
+  1.8 deg).  Over all wall nodes more than 2 mm from the axis the tangential
+  slip is 0.14 mm RMS and 0.17 mm at the 99th percentile, against node
+  displacements of up to 12.8 mm (RMS 5.5 mm).  The largest values, 2.5 mm of
+  slip and 60 deg, belong to a few nodes within 2.5 mm of the axis at the
+  closed top of the ring grid, 91 mm above the apex, where the angle is
+  ill-conditioned and the cap moves 6 mm with the valve plane; 0.5 % of the
+  nodes slip more than 1 mm.  At L4 (24,925 wall nodes) the same measure at
+  phases 0 and 18 gives 4.1-4.7 deg maximum and 0.18-0.19 deg RMS beyond
+  10 mm, and a slip of 0.13-0.14 mm RMS, 0.14-0.16 mm at the 99th percentile
+  and 2.5-2.8 mm at the same base-cap node.  At the phases farthest from
+  end-systole (0, 18 and 19) the RMS azimuth change over all wall nodes beyond
+  2 mm (the `wall_drift` columns of `results.json`) is 1.7-1.8 deg at L2 and
+  1.5-1.7 deg at L4-L6, so the statistic does not depend on the level.
+
+What this section does not settle: it is one subject; there is no flow solve on
+L4-L6 (the flow verification above stops at L3); and 2.57 million cells is where
+this laptop's memory made the study stop (11 GB per phase), which says nothing
+about where the template stops.
+
 ## Input verification: the mask readers
 
 A segmentation mask is the common clinical starting point, and reading it is
@@ -251,6 +398,9 @@ source /opt/openfoam12/etc/bashrc
 python scripts/verification_study.py out_vv --procs 4              # 3 levels x 2 windows, about 1 h on 4 cores
 python scripts/verification_study.py out_vv --flow-only --procs 4  # rerun only the flow on the written cases
 python scripts/verification_figures.py out_vv --png examples/img/verification_refinement.png
+python scripts/quality_through_cycle.py out_qtc --levels 4 5 6 --checkmesh --prior out_vv/results.json   # 3 levels x 20 phases, about 7 h, 11 GB at L6
+python scripts/quality_through_cycle_figures.py out_qtc --png examples/img/quality_through_cycle.png
+python scripts/wall_node_drift.py out_qtc/drift_L2.json --level 2               # node-by-node circumferential drift, about 4 min
 pvbatch scripts/flow_speed_distribution.py out_vv/L1_diastole 0.5375            # fastest cell and speed percentiles
 python scripts/synthetic_masks.py out_masks --variants sa10 sa8 iso1
 python scripts/synthetic_mask_figures.py out_masks --png examples/img/synthetic_masks.png
