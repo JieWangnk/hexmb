@@ -72,24 +72,6 @@ needed to run `checkMesh`, move the mesh, or run a solver on the output.
 No install at all: open
 [`examples/hexmb_quickstart.ipynb`](examples/hexmb_quickstart.ipynb) in Colab.
 
-## General static cavities
-
-Use `hexmb cavity` for rectangular cavities or smooth single cavities with explicit
-units and boundary choices. For example, a 2D cavity mesh with wall clustering:
-
-```bash
-hexmb cavity --size 1 1 0.01 --units m --cells 64 64 1 --two-d \
-  --stretch 1.5 1.5 0 --vtk -o cavity_2d
-hexmb verify -o cavity_2d
-```
-
-The command exports metres, records quality and provenance in `mesh_report.json`,
-and refuses poor-quality meshes or a non-empty output directory. It supplies
-mesh boundaries, not solver fields. See [the cavity guide](docs/CAVITIES.md) for
-smooth surfaces, cap rules and limitations, and [the engineering review](docs/ENGINEERING_REVIEW.md)
-for findings and remaining verification work. The O-grid route is still limited
-to suitable single cavities; the box template handles rectangular corners.
-
 ## Quick start
 
 Every command prints a quality line and says what it wrote. The outputs below are
@@ -242,6 +224,25 @@ res = build_lv_motion(grids, times, builder="conformal", period=0.9, out="case_m
 The single O-grid chamber (`hexmb.templates.lv.LVChamberTemplate`), the tubes
 (`hexmb.templates.tube`) and the AMI telescoping zones
 (`hexmb.templates.telescoping_lv`) keep their v0.1 interfaces.
+
+## Additional utility: static cavities
+
+The secondary `hexmb cavity` command builds static rectangular or smooth single
+cavities with explicit units and boundary choices. It does not fit a sequence of
+measured surfaces or preserve correspondence through motion. For example, a 2D cavity mesh with wall clustering:
+
+```bash
+hexmb cavity --size 1 1 0.01 --units m --cells 64 64 1 --two-d \
+  --stretch 1.5 1.5 0 --vtk -o cavity_2d
+hexmb verify -o cavity_2d
+```
+
+The command exports metres, records quality and provenance in `mesh_report.json`,
+and refuses poor-quality meshes or a non-empty output directory. It supplies
+mesh boundaries, not solver fields. See [the cavity guide](docs/CAVITIES.md) for
+smooth surfaces, cap rules and limitations, and [the engineering review](docs/ENGINEERING_REVIEW.md)
+for findings and remaining verification work. The O-grid route is still limited
+to suitable single cavities; the box template handles rectangular corners.
 
 ## The quality gate
 
@@ -420,9 +421,22 @@ citations, is in the paper's "State of the field" section (`paper.md`).
 
 ## Roadmap
 
-Conforming junction/bifurcation meshing; a richer boundary-layer API (explicit
-first-cell height / y⁺ / n-layers on top of the `wall_ratio` grading); elliptic
-(Winslow) interior smoother; a hex-only telescoping variant so the LV can go to
-Abaqus / CalculiX as well; a PyPI release and a Zenodo DOI.
+The development priority is measured-surface, moving-LV CFD with the same mesh
+connectivity across phases:
+
+1. Support the cine-to-CFD-to-4D-flow study with reproducible production cases
+   and spatial/temporal convergence evidence.
+2. Compare tetrahedral and hexahedral meshes on the same moving LV surfaces,
+   matching geometry, wall motion, boundary conditions and accuracy targets;
+   report error, cost and robustness rather than cell count alone.
+3. Add a reader for an external group's shape model, selected with an identified
+   user and tested on their data.
+4. Publish a reproducible 45-heart cohort evidence table: time per case,
+   intervention frequency, quality distributions and volume preservation,
+   distinguishing original inputs from trimmed or interpolated cases.
+
+Release packaging, a PyPI release and a Zenodo DOI support this work. Generic
+static cavities are a secondary utility; junction meshing and a snappyHexMesh
+backend are not current development priorities.
 
 MIT-licensed (see `LICENSE`). Changes per version in [`CHANGELOG.md`](CHANGELOG.md).
