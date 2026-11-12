@@ -197,7 +197,8 @@ def _smooth_rings(G, iters=1):
 
 
 def endo_grid_from_mesh(mesh, apex=None, base=None, NL=40, NT=56, recentre=2,
-                        apex_offset=0.03, base_offset=0.02, smooth=1, clamp=2.5, frame=None):
+                        apex_offset=0.03, base_offset=0.02, smooth=1, clamp=2.5, frame=None,
+                        check_lv_scale=True):
     """Ray-cast an ``(NL, NT, 3)`` endocardial grid from a surface mesh.
 
     Row 0 is the apex point itself (repeated ``NT`` times, as the Cardiac Atlas
@@ -236,6 +237,10 @@ def endo_grid_from_mesh(mesh, apex=None, base=None, NL=40, NT=56, recentre=2,
         reference phase's frame when casting the other phases of a beating heart
         so the grids correspond point-for-point.
 
+    check_lv_scale : bool
+        Keep the legacy LV-size unit guard. Disable only when the caller has
+        explicitly converted known source units to millimetres.
+
     Returns ``(G, axis, e1, e2, mu, info)``; ``info`` carries the landmarks, the
     axis length and the count of interpolated rays per level.
     """
@@ -259,7 +264,7 @@ def endo_grid_from_mesh(mesh, apex=None, base=None, NL=40, NT=56, recentre=2,
         L = float((base - apex) @ axis)
     if L <= 0:
         raise ValueError("base must lie beyond the apex along the axis")
-    if L < 5.0:
+    if check_lv_scale and L < 5.0:
         raise ValueError(f"apex->base length is {L:.3g}: hexmb works in millimetres (a ventricle is "
                          "60-120 mm long); scale the surface by 1000 if it is in metres")
 

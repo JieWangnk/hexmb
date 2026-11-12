@@ -38,8 +38,10 @@ def graded_radial(NR: int, wall_ratio: float = 1.0) -> np.ndarray:
     `wall_ratio` = size of the cell at the wall relative to the cell at the core
     edge. wall_ratio < 1 clusters cells at the wall (a boundary layer);
     wall_ratio = 1 is uniform."""
-    if NR < 2:
-        raise ValueError("NR must be >= 2")
+    if not isinstance(NR, (int, np.integer)) or NR < 2:
+        raise ValueError("NR must be an integer >= 2")
+    if not np.isfinite(wall_ratio) or wall_ratio <= 0:
+        raise ValueError("wall_ratio must be finite and positive")
     if abs(wall_ratio - 1.0) < 1e-9:
         return np.linspace(0.0, 1.0, NR)
     ncell = NR - 1
