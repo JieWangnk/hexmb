@@ -72,6 +72,24 @@ needed to run `checkMesh`, move the mesh, or run a solver on the output.
 No install at all: open
 [`examples/hexmb_quickstart.ipynb`](examples/hexmb_quickstart.ipynb) in Colab.
 
+## General static cavities
+
+Use `hexmb cavity` for rectangular cavities or smooth single cavities with explicit
+units and boundary choices. For example, a 2D cavity mesh with wall clustering:
+
+```bash
+hexmb cavity --size 1 1 0.01 --units m --cells 64 64 1 --two-d \
+  --stretch 1.5 1.5 0 --vtk -o cavity_2d
+hexmb verify -o cavity_2d
+```
+
+The command exports metres, records quality and provenance in `mesh_report.json`,
+and refuses poor-quality meshes or a non-empty output directory. It supplies
+mesh boundaries, not solver fields. See [the cavity guide](docs/CAVITIES.md) for
+smooth surfaces, cap rules and limitations, and [the engineering review](docs/ENGINEERING_REVIEW.md)
+for findings and remaining verification work. The O-grid route is still limited
+to suitable single cavities; the box template handles rectangular corners.
+
 ## Quick start
 
 Every command prints a quality line and says what it wrote. The outputs below are
@@ -249,11 +267,12 @@ The single O-grid chamber (`hexmb.templates.lv.LVChamberTemplate`), the tubes
 python -m pytest tests/ -q
 ```
 ```text
-..................................................                       [100%]
-50 passed in 16.8s
+97 passed
 ```
 
-(Without `nibabel` the NIfTI mask test is skipped: 49 passed, 1 skipped.)
+Optional surface/image tests are skipped when their dependencies are unavailable.
+The cavity regressions cover units, exact volumes, boundary types, quality
+rejection, overwrite protection and verification exit codes.
 
 The suite needs no data files beyond the bundled heart: `core` (dedup, TFI,
 million-cell assembly), `tubes`, `ogrid_lv` and `telescoping_lv` (synthetic

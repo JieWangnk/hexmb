@@ -459,7 +459,8 @@ def cmd_verify(a):
         print(f"no polyMesh at {pm}"); return 1
     try:
         pts, faces, owner, neigh = read_polymesh(pm)
-        assert np.all(owner[: len(neigh)] < neigh), "owner >= neighbour on an internal face"
+        if not np.all(owner[: len(neigh)] < neigh):
+            raise ValueError("owner >= neighbour on an internal face")
         cell = np.zeros((int(owner.max()) + 1, 3))
         for fi, f in enumerate(faces):
             q = pts[f]; fc = q.mean(0); s = np.zeros(3)
@@ -472,12 +473,27 @@ def cmd_verify(a):
         print(f"  readback: {len(pts)} pts, {len(faces)} faces ({len(neigh)} internal), owner<neighbour OK, "
               f"max |sum Sf| per cell {np.abs(cell).max():.2e}")
         from .services.quality import polymesh_metrics, metrics_line
-        print("  metrics:  " + metrics_line(polymesh_metrics(pts, faces, owner, neigh)["summary"]))
+        metrics = polymesh_metrics(pts, faces, owner, neigh)
+        q = metrics["summary"]
+        print("  metrics:  " + metrics_line(q))
+        if (not np.isfinite(pts).all() or not all(np.isfinite(v) for v in q.values())
+                or q["n_negative_volume"] or q["max_non_orthogonality_deg"] >= 90
+                or q["max_openness"] > 1e-6
+                or np.any(np.linalg.norm(metrics["face_areas"], axis=1) <= 0)):
+            print("  FAILED: invalid geometry in the written mesh")
+            return 1
     except Exception as e:
-        print(f"  readback check skipped: {e}")
-    if shutil.which("checkMesh") or Path("/opt/openfoam12/etc/bashrc").exists():
-        cmd = f"source /opt/openfoam12/etc/bashrc 2>/dev/null; cd {shlex.quote(str(a.out))} && checkMesh -constant"
-        r = subprocess.run(["bash", "-lc", cmd], capture_output=True, text=True)
+        print(f"  FAILED: readback check: {e}")
+        return 1
+    check_mesh = shutil.which("checkMesh")
+    if check_mesh or Path("/opt/openfoam12/etc/bashrc").exists():
+        if check_mesh:
+            command = [check_mesh, "-case", str(Path(a.out).resolve()), "-constant"]
+        else:
+            cmd = ("source /opt/openfoam12/etc/bashrc && "
+                   f"checkMesh -case {shlex.quote(str(Path(a.out).resolve()))} -constant")
+            command = ["bash", "-c", cmd]
+        r = subprocess.run(command, capture_output=True, text=True)
         shown = 0
         for ln in r.stdout.splitlines():
             if any(s in ln for s in ("hexahedra:", "polyhedra:", "Number of regions", "Min volume",
@@ -488,6 +504,12 @@ def cmd_verify(a):
             why = ("OpenFOAM refuses a case path that contains a space (fileName::stripInvalid)"
                    if " " in str(a.out) else (tail[-1].strip() if tail else "no output"))
             print(f"  [checkMesh] no report (exit {r.returncode}): {why}")
+        if r.returncode != 0 or re.search(r"\bFailed\s+\d+\s+mesh checks", r.stdout + r.stderr, re.I):
+            print("  FAILED: checkMesh reported failure")
+            return 1
+        if "Mesh OK" not in r.stdout:
+            print("  FAILED: checkMesh did not confirm Mesh OK")
+            return 1
     else:
         print("  OpenFOAM not found; skipped checkMesh")
     return 0
@@ -554,6 +576,31 @@ def build_parser():
         sp.add_argument("--wall-ratio", type=float, default=1.0, dest="wall_ratio",
                         help="wall-cell/core-cell radial size ratio; <1 = boundary layer")
         sp.add_argument("--allow-invalid", action="store_true")
+
+    from .services.cavity import cmd_cavity
+    sp = sub.add_parser("cavity", help="static box or smooth single cavity, with explicit units and quality report")
+    source = sp.add_mutually_exclusive_group(required=True)
+    source.add_argument("--size", nargs=3, type=float, metavar=("X", "Y", "Z"), help="box lengths")
+    source.add_argument("--surface", help="smooth sac STL/OBJ/PLY/OFF/VTK or ordered ring .npz")
+    sp.add_argument("-o", "--out", required=True, help="new or empty output directory")
+    sp.add_argument("--units", choices=("mm", "cm", "m"), required=True, help="source coordinate units; output is metres")
+    sp.add_argument("--cells", nargs=3, type=int, default=[24, 24, 24], help="box cell counts NX NY NZ")
+    sp.add_argument("--stretch", nargs=3, type=float, default=[0., 0., 0.], help="box wall clustering X Y Z, each 0..5")
+    sp.add_argument("--two-d", action="store_true", help="box only: empty front/back patches, requires NZ=1")
+    sp.add_argument("--ends", choices=("closed", "open", "through"), default="closed", help="ring end-cap boundary rule")
+    sp.add_argument("--start", type=float, default=0., help="explicit retained start fraction (e.g. 0.02 for a pointed sac)")
+    sp.add_argument("--end", type=float, default=1., help="explicit retained end fraction")
+    sp.add_argument("--apex", help="surface start landmark x,y,z, in source units")
+    sp.add_argument("--base", help="surface end landmark x,y,z, in source units")
+    sp.add_argument("--NL", type=int, default=40)
+    sp.add_argument("--NT", type=int, default=32)
+    sp.add_argument("--NR", type=int, default=6)
+    sp.add_argument("--core-frac", type=float, default=0.35)
+    sp.add_argument("--wall-ratio", type=float, default=1.)
+    sp.add_argument("--max-nonorth", type=float, default=70., help="acceptance limit in degrees, must be <90")
+    sp.add_argument("--max-skew", type=float, default=4.)
+    sp.add_argument("--vtk", action="store_true")
+    sp.set_defaults(func=cmd_cavity)
 
     sp = sub.add_parser("pipe", help="straight pipe O-grid"); common(sp)
     sp.add_argument("--length", type=float, default=100.0)

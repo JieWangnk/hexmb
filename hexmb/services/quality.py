@@ -17,19 +17,22 @@ def scaled_jac(points: np.ndarray, hexes: np.ndarray) -> np.ndarray:
     """Return the per-cell minimum-corner scaled Jacobian in [-1,1].
     <= 0 marks an inverted (degenerate/tangled) cell."""
     h = points[hexes]  # (ncell, 8, 3)
+    finite = np.isfinite(h).all(axis=(1, 2))
     mn = np.full(len(hexes), np.inf)
     for a, b, c, e in _CORNERS:
         u = h[:, b] - h[:, a]
         v = h[:, c] - h[:, a]
         w = h[:, e] - h[:, a]
-        det = np.einsum("ij,ij->i", u, np.cross(v, w))
-        nrm = (
-            np.linalg.norm(u, axis=1)
-            * np.linalg.norm(v, axis=1)
-            * np.linalg.norm(w, axis=1)
-            + 1e-12
-        )
-        mn = np.minimum(mn, det / nrm)
+        # Normalise edges separately: a dimensional epsilon in the product
+        # of lengths makes this dimensionless measure depend on mesh units.
+        unit = []
+        for edge in (u, v, w):
+            length = np.linalg.norm(edge, axis=1)
+            unit.append(np.divide(edge, length[:, None], out=np.zeros_like(edge),
+                                  where=length[:, None] > 0))
+        det = np.einsum("ij,ij->i", unit[0], np.cross(unit[1], unit[2]))
+        mn = np.minimum(mn, det)
+    mn[~finite] = np.nan
     return mn
 
 
@@ -131,7 +134,7 @@ def polymesh_metrics(points, faces, owner, neighbour, n_cells=None):
     sv_all = np.vstack([sv, sv_b]); fd_all = np.concatenate([fd, fd_b])
     svhat = sv_all / (np.linalg.norm(sv_all, axis=1)[:, None] + 1e-300)
     for i, f in enumerate(faces):                     # fd = max(fd, |svHat . (p - fC)|) over the face's points
-        proj = np.abs((P[f] - fc[i]) @ svhat[i])
+        proj = np.abs((P[np.asarray(f, int)] - fc[i]) @ svhat[i])
         m = proj.max()
         if m > fd_all[i]:
             fd_all[i] = m
