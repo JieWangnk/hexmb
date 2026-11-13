@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use hexmb, please cite it as below."
+title: "hexmb: structured O-grid hexahedral meshes for tubes and beating heart chambers"
+type: software
+authors:
+  - family-names: Wang
+    given-names: Jie
+    affiliation: University of Manchester
+license: MIT
+repository-code: "https://github.com/JieWangnk/hexmb"
+keywords:
+  - hexahedral mesh
+  - O-grid
+  - left ventricle
+  - moving mesh
+  - OpenFOAM
+version: 0.2.1
+date-released: 2026-11-13

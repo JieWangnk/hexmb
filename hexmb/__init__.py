@@ -4,4 +4,4 @@ from .core.multiblock import MultiBlockMesh
 from .core.topology import FaceKey
 
 __all__ = ["Block", "BoundaryFace", "MultiBlockMesh", "FaceKey"]
-__version__ = "0.2.0"
+__version__ = "0.2.1"

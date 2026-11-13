@@ -150,17 +150,67 @@ def _single_kwargs(a):
                 apex_trim=c.apex_trim, base_cut=c.base_cut)
 
 
+UNIT_TO_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
+LV_LENGTH_MM = (20.0, 250.0)          # apex-to-valve-plane length of a human left ventricle, generous
+
+
+def _to_mm(G, mu, info, units):
+    """Scale a grid read in ``units`` to millimetres (axis directions are unit vectors and stay)."""
+    f = UNIT_TO_MM[units]
+    if f == 1.0:
+        return G, mu, info
+    info = dict(info)
+    for k in ("apex", "base"):
+        if k in info:
+            info[k] = np.asarray(info[k], float) * f
+    if "axis_length" in info:
+        info["axis_length"] = float(info["axis_length"]) * f
+    return np.asarray(G, float) * f, np.asarray(mu, float) * f, info
+
+
+def _check_lv_size(G, path, units, any_size):
+    """Stop a surface whose apex-to-base length is no human ventricle's: almost always a unit slip."""
+    L = float(np.linalg.norm(np.asarray(G)[-1].mean(0) - np.asarray(G)[0].mean(0)))
+    lo, hi = LV_LENGTH_MM
+    if any_size or lo <= L <= hi:
+        return L
+    hint = []
+    for u, f in UNIT_TO_MM.items():
+        if u != units and lo <= L * f / UNIT_TO_MM[units] <= hi:
+            hint.append(f"--units {u}")
+    guess = (f"; if the file is in another unit give {' or '.join(hint)}" if hint else "")
+    raise ValueError(f"{Path(path).name}: apex-to-base length {L:.3g} mm (read as {units}) is outside the "
+                     f"{lo:.0f}-{hi:.0f} mm of a human left ventricle{guess}; "
+                     "for a non-human heart give --any-size")
+
+
+def _require_files(paths):
+    """Name a missing input plainly; an unexpanded shell pattern means it matched nothing."""
+    for p in paths:
+        if Path(p).is_file():
+            continue
+        if any(ch in str(p) for ch in "*?["):
+            raise FileNotFoundError(f"no file matches the pattern {p} (check the folder and the file names)")
+        raise FileNotFoundError(f"{p}: no such file")
+
+
 def _load_grid(a, path=None, frame=None):
     """Any surface source -> (G, axis, e1, e2, mu, info), with a one-line report."""
     from .io.surface import grid_from_file
     path = path or a.surface
+    _require_files([path])
     kw = {}
     if getattr(a, "label", None) is not None:
         kw["label"] = a.label
     if getattr(a, "mask_method", "auto") != "auto" and str(path).lower().endswith((".nii", ".nii.gz")):
         kw["method"] = a.mask_method
+    if not str(path).lower().endswith((".nii", ".nii.gz", ".npz", ".exnode")):
+        kw["check_lv_scale"] = False          # the unit and size check below replaces the library's metres guard
     G, axis, e1, e2, mu, info = grid_from_file(path, NL=a.NL, NT=a.NT, apex=_xyz(getattr(a, "apex", None)),
                                                base=_xyz(getattr(a, "base", None)), frame=frame, **kw)
+    units = "mm" if str(path).lower().endswith((".nii", ".nii.gz")) else getattr(a, "units", "mm")
+    G, mu, info = _to_mm(G, mu, info, units)
+    _check_lv_size(G, path, units, getattr(a, "any_size", False))
     src = info.get("source", "mesh")
     line = f"  surface {Path(path).name}: {src} -> grid {G.shape[0]} x {G.shape[1]}"
     if "landmarks" in info:
@@ -315,6 +365,10 @@ def _natural_key(p):
 def _load_phase_grids(a, files):
     """Per-phase surfaces -> list of corresponding grids + the reference frame."""
     files = sorted(files, key=_natural_key)
+    _require_files(files)
+    if len(files) == 1 and not files[0].lower().endswith(".npz"):
+        raise ValueError(f"a moving mesh needs at least two phases; got one surface ({files[0]}). "
+                         "Give one file per phase, for example --surfaces phases/lv_phase_*.stl")
     if len(files) == 1 and files[0].lower().endswith(".npz"):
         fs = np.load(files[0])
         if "grids" in fs:
@@ -394,6 +448,12 @@ def cmd_demo(a):
     out.mkdir(parents=True, exist_ok=True)
     ntri = write_surface_stl(grids[0], out / "lv_endo_phase1.stl", scale=1.0)
     print(f"  wrote {out / 'lv_endo_phase1.stl'} ({ntri} triangles, mm)")
+    if a.phases_stl:
+        pdir = Path(a.phases_stl); pdir.mkdir(parents=True, exist_ok=True)
+        for k, f in enumerate(files):                 # finer than the meshing grid: a surface to re-read
+            write_surface_stl(cap_endo_surface(f, NL=60, NT=96), pdir / f"lv_phase_{k:02d}.stl", scale=1.0)
+        print(f"  wrote {len(files)} phase surfaces to {pdir}/ (STL, mm); try the own-surfaces route with\n"
+              f"    hexmb motion --surfaces {pdir}/lv_phase_*.stl --period {a.period:g} -o case_from_stl")
     res = _run_motion(a, grids, (axis, e1, e2, mu), times, out / "lv_moving")
     if a.render:
         try:
@@ -452,6 +512,17 @@ def cmd_render(a):
     return 0
 
 
+def _foam_bashrc():
+    """The OpenFOAM environment script: $HEXMB_FOAM_BASHRC, then $WM_PROJECT_DIR, then /opt/openfoam12."""
+    import os
+    for c in (os.environ.get("HEXMB_FOAM_BASHRC"),
+              os.environ.get("WM_PROJECT_DIR") and str(Path(os.environ["WM_PROJECT_DIR"]) / "etc" / "bashrc"),
+              "/opt/openfoam12/etc/bashrc"):
+        if c and Path(c).is_file():
+            return Path(c)
+    return None
+
+
 def cmd_verify(a):
     from .io.foam import read_polymesh
     pm = Path(a.out) / "constant" / "polyMesh"
@@ -486,11 +557,12 @@ def cmd_verify(a):
         print(f"  FAILED: readback check: {e}")
         return 1
     check_mesh = shutil.which("checkMesh")
-    if check_mesh or Path("/opt/openfoam12/etc/bashrc").exists():
+    bashrc = _foam_bashrc()
+    if check_mesh or bashrc:
         if check_mesh:
             command = [check_mesh, "-case", str(Path(a.out).resolve()), "-constant"]
         else:
-            cmd = ("source /opt/openfoam12/etc/bashrc && "
+            cmd = (f"source {shlex.quote(str(bashrc))} && "
                    f"checkMesh -case {shlex.quote(str(Path(a.out).resolve()))} -constant")
             command = ["bash", "-c", cmd]
         r = subprocess.run(command, capture_output=True, text=True)
@@ -511,7 +583,8 @@ def cmd_verify(a):
             print("  FAILED: checkMesh did not confirm Mesh OK")
             return 1
     else:
-        print("  OpenFOAM not found; skipped checkMesh")
+        print("  OpenFOAM not found (no checkMesh on PATH, no OpenFOAM bashrc); skipped checkMesh. "
+              "Source your OpenFOAM 12 etc/bashrc first, or set HEXMB_FOAM_BASHRC=/path/to/etc/bashrc")
     return 0
 
 
@@ -527,6 +600,11 @@ def _lv_common(sp, default_template="conformal"):
     sp.add_argument("--NT", type=int, default=56, help="surface points around (÷4)")
     sp.add_argument("--apex", default=None, help="apex x,y,z (mm); default: detected")
     sp.add_argument("--base", default=None, help="valve-plane centre x,y,z (mm); default: detected")
+    sp.add_argument("--units", choices=tuple(UNIT_TO_MM), default="mm",
+                    help="unit of the surface file's coordinates (default mm; masks use their affine); "
+                         "--apex/--base are given in the same unit")
+    sp.add_argument("--any-size", action="store_true", dest="any_size",
+                    help="skip the 20-250 mm apex-to-base check (non-human hearts)")
     sp.add_argument("--label", type=int, default=None, help="mask label to use (.nii input)")
     sp.add_argument("--mask-method", choices=("auto", "slices", "marching"), default="auto", dest="mask_method",
                     help="mask reader: slices (one ring per thick slice), marching (marching cubes + rays), "
@@ -648,6 +726,9 @@ def build_parser():
     sp.add_argument("--table-interpolation", choices=("spline", "linear"), default="spline",
                     help="mover interpolation of the displacement table between phases (default spline)")
     sp.add_argument("--render", action="store_true", help="write demo.png (needs matplotlib)")
+    sp.add_argument("--phases-stl", default=None, dest="phases_stl", metavar="DIR",
+                    help="also write every phase's endocardial surface as STL (mm) to DIR, "
+                         "to try `hexmb motion` on files")
     _lv_common(sp)
     sp.set_defaults(func=cmd_demo)
 

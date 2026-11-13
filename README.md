@@ -110,6 +110,7 @@ end-diastole and end-systole and the volume curve.
 hexmb lv --surface lv_endo.stl -o case_lv                 # also .obj .ply .off .vtk .vtp
 hexmb lv --surface lv_mask.nii.gz --label 1 -o case_lv    # a segmentation mask (thick short-axis slices or isotropic)
 hexmb lv --surface SCD0000101_1.model.exnode -o case_lv   # a Cardiac Atlas model
+hexmb lv --surface lv_endo_cm.stl --units cm -o case_lv   # a surface saved in cm (or --units m)
 ```
 ```text
 lv: lv_endo.stl
@@ -118,6 +119,10 @@ lv: lv_endo.stl
   cells 14688 (14472 hex + 216 split-hex)  points 16130  min pyramid +6.832e-02 mm3  failing cells 0  zero-area faces 0  cavity 103.3 mL  (VALID)
   wrote case_lv/constant/polyMesh  (one region, 43344 internal faces, patches ['wall', 'outlet1', 'inlet'])
 ```
+Surfaces are read in millimetres unless `--units` says otherwise. A surface
+whose apex-to-base length is outside 20-250 mm is stopped with a message that
+names the likely unit, since a silent unit slip would build a valid mesh of the
+wrong size; `--any-size` lets a non-human heart through.
 The apex and the valve-plane centre are detected (an open surface: the largest
 boundary loop is the base; a closed one: the narrower end of the longest axis is
 the apex); give them with `--apex x,y,z --base x,y,z` when you know better.
@@ -126,6 +131,9 @@ AMI-coupled zones. `--body-levels 60` doubles the body resolution; that axial
 refinement is the skew-safe way to add cells on a moving ventricle.
 
 **3. A beating ventricle from per-phase surfaces.**
+
+No surfaces of your own yet? `hexmb demo -o out_demo --phases-stl phases` writes
+the bundled heart's 20 phases as STL files to try this route on.
 
 ```bash
 hexmb motion --surfaces phase_*.vtk --period 0.9 -o case_moving      # files sorted naturally
@@ -191,6 +199,8 @@ hexmb verify -o case_lv
   [checkMesh] Max skewness = 2.308924 OK.
   [checkMesh] Mesh OK.
 ```
+`verify` uses `checkMesh` from the PATH, else sources `$HEXMB_FOAM_BASHRC`,
+`$WM_PROJECT_DIR/etc/bashrc` or `/opt/openfoam12/etc/bashrc`, in that order.
 (the demo's end-systolic reference mesh; the `metrics:` line is hexmb's own,
 computed with OpenFOAM's definitions, and agrees with `checkMesh` to the
 printed precision.)

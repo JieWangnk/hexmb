@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hexmb"
-version = "0.2.0"
+version = "0.2.1"
 description = "Structured O-grid (butterfly) all-hex mesh engine for tubes and beating heart chambers, with OpenFOAM export and moving-mesh cases."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Jie Wang"}]
 keywords = ["mesh", "hexahedral", "O-grid", "OpenFOAM", "CFD", "left ventricle", "moving mesh"]
 dependencies = ["numpy>=1.23", "scipy>=1.9"]

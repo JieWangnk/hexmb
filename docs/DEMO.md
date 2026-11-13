@@ -59,12 +59,21 @@ The Atlas model has no RR interval, so the demo spaces the 20 phases evenly over
 ## 2. Your own per-phase surfaces
 
 This is the route for a user's data: one surface file per phase of the same
-heart, in millimetres, any of STL / OBJ / PLY / OFF / VTK / VTP / VTU, or one
-NIfTI mask per phase.  The surface may be open at the base (the valve plane) or
-closed.  File names are sorted naturally (`phase_2` before `phase_10`), so number
-them in time order.
+heart, any of STL / OBJ / PLY / OFF / VTK / VTP / VTU, or one NIfTI mask per
+phase.  Surfaces are read in millimetres; give `--units cm` or `--units m` for
+files in other units (a mask uses its own affine).  A surface whose apex-to-base
+length falls outside 20-250 mm is stopped with a message naming the likely unit;
+`--any-size` lets a non-human heart through.  The surface may be open at the base
+(the valve plane) or closed.  File names are sorted naturally (`phase_2` before
+`phase_10`), so number them in time order.
 
 To try it without your own segmentations, write the bundled phases out as STL:
+
+```bash
+hexmb demo -o out_demo --phases-stl phases
+```
+
+or, from Python:
 
 ```python
 import re

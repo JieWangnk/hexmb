@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (13 November 2026)
+
+- **Input handling for new users** (found by a clean-install test from the wheel):
+  `--units mm|cm|m` on the surface commands, and a 20-250 mm apex-to-base check
+  that stops a unit slip with a message naming the likely unit (a centimetre
+  file used to build a valid 0.2 mL ventricle silently); `--any-size` for
+  non-human hearts. A missing file, a file pattern that matches nothing and a
+  one-phase `motion` run are refused with a plain message before any meshing.
+  `hexmb demo --phases-stl DIR` writes the bundled heart's phases as STL files
+  for the own-surfaces route. `verify` finds OpenFOAM through
+  `$HEXMB_FOAM_BASHRC` or `$WM_PROJECT_DIR` as well as `/opt/openfoam12`.
+  Packaging uses the SPDX license field (setuptools >= 77). Tests in
+  `tests/test_cli_inputs.py`.
+- **Fail-closed verification and static cavities** (PR #1): `hexmb verify`
+  returns non-zero on any readback, geometry or `checkMesh` failure;
+  `hexmb cavity` builds a static box or smooth single cavity with explicit
+  units (`docs/CAVITIES.md`, `docs/ENGINEERING_REVIEW.md`).
 
 - **Quality through the cycle at six levels** (`scripts/quality_through_cycle.py`,
   `scripts/quality_through_cycle_figures.py`, new section in
