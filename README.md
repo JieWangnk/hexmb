@@ -1,5 +1,7 @@
 # hexmb — structured O-grid hex mesher for tubes and beating heart chambers
 
+[![PyPI](https://img.shields.io/pypi/v/hexmb)](https://pypi.org/project/hexmb/) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22834026.svg)](https://doi.org/10.5281/zenodo.22834026)
+
 `hexmb` builds all-hexahedral **O-grid (butterfly)** meshes for CFD and writes
 them directly as an OpenFOAM `constant/polyMesh`. An O-grid is a square "H" core
 block surrounded by boundary-fitted petal blocks — all-hex, boundary-conforming,
@@ -60,7 +62,7 @@ Use a virtual environment (modern Linux blocks `pip` into the system Python):
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install "hexmb[all] @ git+https://github.com/JieWangnk/hexmb"   # everything: surfaces, masks, figures
+pip install "hexmb[all]"          # from PyPI; everything: surfaces, masks, figures
 ```
 
 Or from a clone: `pip install -e ".[all,dev]"`, or with uv in a fresh venv:
@@ -448,5 +450,7 @@ connectivity across phases:
 Release packaging, a PyPI release and a Zenodo DOI support this work. Generic
 static cavities are a secondary utility; junction meshing and a snappyHexMesh
 backend are not current development priorities.
+
+Cite hexmb with its Zenodo concept DOI, [10.5281/zenodo.22834026](https://doi.org/10.5281/zenodo.22834026), which always resolves to the latest version (0.2.1: 10.5281/zenodo.24193708); `CITATION.cff` has the details.
 
 MIT-licensed (see `LICENSE`). Changes per version in [`CHANGELOG.md`](CHANGELOG.md).

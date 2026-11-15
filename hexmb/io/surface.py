@@ -99,6 +99,20 @@ def frame_from_axis(axis):
     return e1, e2
 
 
+def anatomical_frame(axis, toward):
+    """``(e1, e2)`` with ``e1`` along the part of ``toward`` perpendicular to the
+    unit ``axis`` (for a ventricle: from the long axis toward the septum) and
+    ``e2 = axis x e1``.  Raises when ``toward`` lies along the axis."""
+    axis = np.asarray(axis, float); axis = axis / np.linalg.norm(axis)
+    v = np.asarray(toward, float)
+    e1 = v - axis * (v @ axis)
+    n = float(np.linalg.norm(e1))
+    if n < 1e-6 * max(1.0, float(np.linalg.norm(v))):
+        raise ValueError("the anatomical landmark lies on the long axis; it cannot set angle zero")
+    e1 = e1 / n
+    return e1, np.cross(axis, e1)
+
+
 def _boundary_loops(mesh):
     """Vertex-index arrays of the open boundary loops (edges used by one face),
     one array per connected loop, largest perimeter first."""
@@ -523,10 +537,10 @@ def grid_from_file(path, NL=40, NT=56, apex=None, base=None, frame=None, label=N
             axis, e1, e2, mu = surface_frame(G)
         return G, axis, e1, e2, mu, {"source": "npz"}
     if name.endswith(".exnode"):
-        from .cap import cap_endo_surface, surface_frame
+        from .cap import cap_endo_surface, cap_frame
         G = cap_endo_surface(str(p), NL=NL, NT=NT)
-        axis, e1, e2, mu = surface_frame(G)
-        return G, axis, e1, e2, mu, {"source": "cap"}
+        axis, e1, e2, mu = cap_frame(G)
+        return G, axis, e1, e2, mu, {"source": "cap", "frame_anchor": "Atlas model y (toward the right ventricle)"}
     if name.endswith(_MASK_EXT):
         return grid_from_mask(str(p), label=label, NL=NL, NT=NT, apex=apex, base=base, frame=frame, **kw)
     if label is not None:

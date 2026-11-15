@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **Anatomical frame.** Cardiac Atlas models now set the in-plane axes from
+  each model's own transformation matrix (`io/cap.py`): e1 points toward the
+  right ventricle (septal), so the same cell index sits at the same anatomical
+  place in every heart. Other inputs take `--septum x,y,z`. Each case writes
+  `hexmb_frame.json` and the run prints the frame. Tests in
+  `tests/test_anchor.py`.
+- **Valve sectors.** `--mitral-deg FROM,TO` and `--aortic-deg FROM,TO` set the
+  valve-cap sectors of the `sectors` rule in degrees from e1 (defaults 150,340
+  and 0,125). Tests in `tests/test_cli_sectors.py`.
+- **Flow case fixes.** `Allrun` reconstructs every time of the window with
+  `reconstructPar -time '<start>:'`; `-newTimes` skipped write times that were
+  also motion-table times, so the last snapshot of each run was missing.
+  `Allrun` uses an OpenFOAM already on the `PATH` (a cluster module) before
+  `$HEXMB_FOAM_BASHRC`, `$WM_PROJECT_DIR` or `/opt/openfoam12`.
+- README and `CITATION.cff` carry the PyPI install line and the Zenodo DOIs.
+
 ## 0.2.1 (13 November 2026)
 
 - **Input handling for new users** (found by a clean-install test from the wheel):

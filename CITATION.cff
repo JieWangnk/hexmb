@@ -7,6 +7,14 @@ authors:
     given-names: Jie
     affiliation: University of Manchester
 license: MIT
+doi: 10.5281/zenodo.22834026
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22834026
+    description: Concept DOI, all versions
+  - type: doi
+    value: 10.5281/zenodo.24193708
+    description: Version 0.2.1
 repository-code: "https://github.com/JieWangnk/hexmb"
 keywords:
   - hexahedral mesh

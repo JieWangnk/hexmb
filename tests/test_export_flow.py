@@ -175,6 +175,9 @@ def test_flow_case_windows_and_dictionaries(tmp_path):
     assert "interpolationScheme spline" in (case / "constant" / "dynamicMeshDict").read_text()
     run = (case / "Allrun").read_text()
     assert "decomposePar -force -time '0:'" in run and "CHECK: Courant max is 0" in run
+    # the window end is also a table time whose folder exists: -newTimes would skip it
+    assert "command -v foamRun" in run and "HEXMB_FOAM_BASHRC" in run     # a loaded OpenFOAM is used as is
+    assert "reconstructPar -newTimes" not in run and f"reconstructPar -time '{r['t0']:g}:'" in run
     # systole from an end-diastole reference
     case_ed, _ = _moving_case(tmp_path, "ed")
     r = write_flow_case(case_ed, "systole", verbose=False)

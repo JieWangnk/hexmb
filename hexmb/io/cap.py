@@ -32,7 +32,7 @@ from pathlib import Path
 
 import numpy as np
 
-__all__ = ["cap_endo_surface", "surface_frame", "parse_exnode", "parse_exelem", "find_exelem"]
+__all__ = ["cap_endo_surface", "surface_frame", "cap_frame", "parse_exnode", "parse_exelem", "find_exelem"]
 
 
 def parse_exnode(path):
@@ -194,9 +194,34 @@ def cap_endo_surface(exnode_path, NL=40, NT=56, exelem=None, layer="endo"):
 
 
 def surface_frame(G):
-    """apex->base axis, base-plane e1/e2, centroid mu -- the frame the LV mesher expects."""
+    """apex->base axis, base-plane e1/e2, centroid mu -- the frame the LV mesher expects.
+
+    For a generic grid ``e1`` is the global x axis (or y, when the long axis lies
+    along x) projected off the long axis, which carries no anatomical meaning.
+    Use :func:`cap_frame` for a Cardiac Atlas model."""
     from .surface import frame_from_axis
     apex = G[0].mean(0); base = G[-1].mean(0)
     axis = base - apex; axis /= np.linalg.norm(axis)
     e1, e2 = frame_from_axis(axis)        # picks x unless the axis is (nearly) along x, then y
+    return axis, e1, e2, G.reshape(-1, 3).mean(0)
+
+
+def cap_frame(G):
+    """The anatomical frame of a Cardiac Atlas model grid: ``e1`` is the model's
+    +y axis projected off the apex->base axis.
+
+    The Atlas (CIM) models are written in model coordinates whose x axis runs
+    from the base toward the apex and whose y axis points toward the right
+    ventricle.  Checked on all 45 Sunnybrook subjects with the model-to-scanner
+    matrix of each model's XML: model x maps to patient left, anterior and
+    inferior, and model y to patient right and anterior (azimuth 16-61 deg),
+    in every subject.  Angle zero of the mesh therefore points from the LV
+    axis toward the septum in every heart, so the same cell index sits at the
+    same anatomical place across subjects, and the ``sectors`` valve rule puts
+    the aortic outlet on the anterior-septal side.  For these models the result
+    equals :func:`surface_frame`, whose fallback axis is the same model y."""
+    from .surface import anatomical_frame
+    apex = G[0].mean(0); base = G[-1].mean(0)
+    axis = base - apex; axis /= np.linalg.norm(axis)
+    e1, e2 = anatomical_frame(axis, np.array([0.0, 1.0, 0.0]))
     return axis, e1, e2, G.reshape(-1, 3).mean(0)

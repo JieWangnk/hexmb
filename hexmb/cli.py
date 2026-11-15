@@ -138,7 +138,19 @@ def _conformal_cfg(a):
         v = getattr(a, name, None)
         if v is not None:
             setattr(cfg, name, v)
+    for name in ("mitral_deg", "aortic_deg"):
+        v = getattr(a, name, None)
+        if v is not None:
+            setattr(cfg, name, _sector(v, name))
     return cfg
+
+
+def _sector(s, name):
+    """'FROM,TO' in degrees -> (from, to), each in [0, 360)."""
+    v = [float(x) for x in re.split(r"[,\s]+", str(s).strip()) if x]
+    if len(v) != 2:
+        raise ValueError(f"--{name.replace('_', '-')}: expected FROM,TO in degrees, got {s!r}")
+    return (v[0] % 360.0, v[1] % 360.0)
 
 
 def _single_kwargs(a):
@@ -184,6 +196,21 @@ def _check_lv_size(G, path, units, any_size):
                      "for a non-human heart give --any-size")
 
 
+def _write_frame(case, axis, e1, e2, mu, a):
+    """Record the mesh frame with the case: cross-subject analysis needs to know
+    where angle zero points and whether it is anatomical."""
+    import json
+    case = Path(case)
+    if not (case / "constant").is_dir():
+        return
+    rec = {"axis_apex_to_base": [float(v) for v in axis], "e1_angle_zero": [float(v) for v in e1],
+           "e2": [float(v) for v in e2], "centroid_mm": [float(v) for v in mu],
+           "anchor": getattr(a, "_frame_anchor", "scanner x axis (not anatomical)"),
+           "anatomical": not getattr(a, "_frame_anchor", "scanner").startswith("scanner"),
+           "template": getattr(a, "template", None)}
+    (case / "hexmb_frame.json").write_text(json.dumps(rec, indent=1))
+
+
 def _require_files(paths):
     """Name a missing input plainly; an unexpanded shell pattern means it matched nothing."""
     for p in paths:
@@ -206,8 +233,22 @@ def _load_grid(a, path=None, frame=None):
         kw["method"] = a.mask_method
     if not str(path).lower().endswith((".nii", ".nii.gz", ".npz", ".exnode")):
         kw["check_lv_scale"] = False          # the unit and size check below replaces the library's metres guard
-    G, axis, e1, e2, mu, info = grid_from_file(path, NL=a.NL, NT=a.NT, apex=_xyz(getattr(a, "apex", None)),
-                                               base=_xyz(getattr(a, "base", None)), frame=frame, **kw)
+    apex, base = _xyz(getattr(a, "apex", None)), _xyz(getattr(a, "base", None))
+    septum = _xyz(getattr(a, "septum", None))
+    anchor = None
+    if septum is not None and frame is None:
+        if str(path).lower().endswith((".npz", ".exnode")):
+            raise ValueError(f"{Path(path).name}: --septum applies to surface and mask inputs; "
+                             "an Atlas model carries its own anatomical frame")
+        from .io.surface import anatomical_frame
+        _, _, _, _, _, info0 = grid_from_file(path, NL=a.NL, NT=a.NT, apex=apex, base=base, **kw)
+        apex, base = np.asarray(info0["apex"], float), np.asarray(info0["base"], float)
+        ax = (base - apex) / np.linalg.norm(base - apex)
+        e1s, e2s = anatomical_frame(ax, septum - apex)
+        frame, anchor = (ax, e1s, e2s), "septum landmark"
+    G, axis, e1, e2, mu, info = grid_from_file(path, NL=a.NL, NT=a.NT, apex=apex, base=base, frame=frame, **kw)
+    if anchor:
+        info["frame_anchor"] = anchor
     units = "mm" if str(path).lower().endswith((".nii", ".nii.gz")) else getattr(a, "units", "mm")
     G, mu, info = _to_mm(G, mu, info, units)
     _check_lv_size(G, path, units, getattr(a, "any_size", False))
@@ -224,6 +265,10 @@ def _load_grid(a, path=None, frame=None):
     if "mask_volume_mL" in info:
         line += f", mask volume {info['mask_volume_mL']:.1f} mL"
     print(line)
+    if not hasattr(a, "_frame_anchor"):               # the first (reference-frame) surface sets the anchor
+        a._frame_anchor = info.get("frame_anchor", "scanner x axis (not anatomical)")
+        note = "" if "frame_anchor" in info else "; give --septum x,y,z to anchor it on the anatomy"
+        print(f"  frame: angle zero from {a._frame_anchor}{note}")
     return G, axis, e1, e2, mu, info
 
 
@@ -266,6 +311,7 @@ def _mesh_from_grid(G, axis, e1, e2, mu, a):
         if _surface_failed(b, a.allow_invalid):
             return 1
         rc = _report_and_write_poly(b["meshes"][0], a.out, a.allow_invalid)
+        _write_frame(a.out, axis, e1, e2, mu, a)
         if a.metrics:
             r = b["rows"][0]
             print(f"  metrics:  non-orthogonality max {r['max_non_orthogonality_deg']:.1f} deg (average "
@@ -402,6 +448,9 @@ def _run_motion(a, grids, frame, times, out):
               f"skewness max {max(r['max_skewness'] for r in q):.2f} ({max(r['n_skewness_gt4'] for r in q)} faces > 4 at worst), "
               f"aspect ratio max {max(r['max_aspect_ratio'] for r in q):.1f}  (per phase in motion_quality.csv)")
     if res["case"]:
+        f = frame if frame is not None else (None,) * 4
+        if f[0] is not None:
+            _write_frame(res["case"], f[0], f[1], f[2], f[3], a)
         _maybe_vtk(a, 0 if res["valid"] else 1, res["case"])
     return res
 
@@ -432,7 +481,7 @@ def cmd_demo(a):
     phase with the conformal template, gate it, and write the moving-mesh case.
     Needs numpy + scipy only."""
     from importlib import resources
-    from .io.cap import cap_endo_surface, surface_frame
+    from .io.cap import cap_endo_surface, cap_frame
     from .io.stl_surface import write_surface_stl
     if a.template == "telescoping":
         print("demo: the AMI telescoping template is not a moving-mesh route; use conformal or single")
@@ -443,7 +492,8 @@ def cmd_demo(a):
     out = Path(a.out)
     print(f"demo: Cardiac Atlas SCD0000101, {len(files)} phases (CC0), template {a.template}")
     grids = [cap_endo_surface(f, NL=a.NL, NT=a.NT) for f in files]
-    axis, e1, e2, mu = surface_frame(grids[0])
+    axis, e1, e2, mu = cap_frame(grids[0])
+    a._frame_anchor = "Atlas model y (toward the right ventricle)"
     times = a.period * np.arange(len(grids)) / len(grids)
     out.mkdir(parents=True, exist_ok=True)
     ntri = write_surface_stl(grids[0], out / "lv_endo_phase1.stl", scale=1.0)
@@ -603,6 +653,10 @@ def _lv_common(sp, default_template="conformal"):
     sp.add_argument("--units", choices=tuple(UNIT_TO_MM), default="mm",
                     help="unit of the surface file's coordinates (default mm; masks use their affine); "
                          "--apex/--base are given in the same unit")
+    sp.add_argument("--septum", default=None,
+                    help="x,y,z of a point on the septum or the right-ventricle centre (surface units): angle "
+                         "zero of the mesh points from the LV axis toward it, so cells correspond across "
+                         "subjects and the aortic outlet sits on the septal side. Atlas models need none")
     sp.add_argument("--any-size", action="store_true", dest="any_size",
                     help="skip the 20-250 mm apex-to-base check (non-human hearts)")
     sp.add_argument("--label", type=int, default=None, help="mask label to use (.nii input)")
@@ -624,6 +678,11 @@ def _lv_common(sp, default_template="conformal"):
     sp.add_argument("--inlet", choices=("sectors", "fullcap", "centred"), default=None,
                     help="valve-plane patch rule (conformal)")
     sp.add_argument("--inlet-area-cm2", type=float, default=None, dest="inlet_area_cm2")
+    sp.add_argument("--mitral-deg", default=None, dest="mitral_deg", metavar="FROM,TO",
+                    help="mitral sector of the valve cap in degrees from e1 (septal) toward e2 (sectors rule; "
+                         "default 150,340)")
+    sp.add_argument("--aortic-deg", default=None, dest="aortic_deg", metavar="FROM,TO",
+                    help="aortic sector in degrees (sectors rule; default 0,125; may wrap through 0)")
     # single / telescoping
     sp.add_argument("--NR", type=int, default=6, help="radial layers (single / telescoping body)")
     sp.add_argument("--core-frac", type=float, default=None, dest="core_frac",

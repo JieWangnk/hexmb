@@ -348,7 +348,7 @@ reference).  `flow_setup.txt` records every choice.  Function objects write
 unit density), the wall shear stress at write times and a `checkMesh` of the
 moving mesh at every write time, so the run tells you itself whether the mesh
 stayed sound.  `Allrun` runs `decomposePar -force -time '0:'`, `foamRun -parallel`
-and `reconstructPar -newTimes`, and prints the last Courant number.  The
+and `reconstructPar` over every time of the window, and prints the last Courant number.  The
 `-time '0:'` matters: the `interpolator` mover reads `wantedDisplacement` from
 every table time, and a plain `decomposePar` copies only the start-time folder,
 so the processors would hold no tables and the mesh would never move.  That
