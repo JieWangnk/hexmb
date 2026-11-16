@@ -124,7 +124,7 @@ def _xyz(s):
     if s is None:
         return None
     v = [float(x) for x in re.split(r"[,\s]+", s.strip()) if x]
-    if len(v) != 3:
+    if len(v) != 3 or not np.isfinite(v).all():
         raise ValueError(f"--apex/--base: expected x,y,z, got {s!r}")
     return np.array(v)
 
@@ -148,7 +148,7 @@ def _conformal_cfg(a):
 def _sector(s, name):
     """'FROM,TO' in degrees -> (from, to), each in [0, 360)."""
     v = [float(x) for x in re.split(r"[,\s]+", str(s).strip()) if x]
-    if len(v) != 2:
+    if len(v) != 2 or not np.isfinite(v).all():
         raise ValueError(f"--{name.replace('_', '-')}: expected FROM,TO in degrees, got {s!r}")
     return (v[0] % 360.0, v[1] % 360.0)
 
@@ -416,11 +416,29 @@ def _load_phase_grids(a, files):
         raise ValueError(f"a moving mesh needs at least two phases; got one surface ({files[0]}). "
                          "Give one file per phase, for example --surfaces phases/lv_phase_*.stl")
     if len(files) == 1 and files[0].lower().endswith(".npz"):
-        fs = np.load(files[0])
-        if "grids" in fs:
-            grids = [np.asarray(g, float) for g in fs["grids"]]
-            print(f"  {files[0]}: {len(grids)} phase grids {grids[0].shape}")
-            return grids, None
+        with np.load(files[0]) as fs:
+            if "grids" in fs:
+                raw = np.asarray(fs["grids"], float)
+                if (raw.ndim != 4 or raw.shape[0] < 2 or raw.shape[1] < 3
+                        or raw.shape[2] < 4 or raw.shape[2] % 4 or raw.shape[3] != 3
+                        or not np.isfinite(raw).all()):
+                    raise ValueError("NPZ grids must be finite (phases>=2, levels>=3, angles divisible by 4, 3)")
+                if getattr(a, "septum", None):
+                    raise ValueError("--septum applies to surface and mask inputs, not saved NPZ grids")
+                grids = [g * UNIT_TO_MM[a.units] for g in raw]
+                for G in grids:
+                    _check_lv_size(G, files[0], a.units, a.any_size)
+                keys = ("axis", "e1", "e2")
+                if any(k in fs for k in keys) and not all(k in fs for k in keys):
+                    raise ValueError("NPZ frame requires axis, e1 and e2 together")
+                frame = None
+                if all(k in fs for k in keys):
+                    axis, e1, e2 = (np.asarray(fs[k], float) for k in keys)
+                    mu = (np.asarray(fs["mu"], float) * UNIT_TO_MM[a.units] if "mu" in fs
+                          else grids[0].reshape(-1, 3).mean(0))
+                    frame = (axis, e1, e2, mu)
+                print(f"  {files[0]}: {len(grids)} phase grids {grids[0].shape}, read as {a.units}")
+                return grids, frame
     grids, frame = [], None
     for k, f in enumerate(files):
         G, axis, e1, e2, mu, info = _load_grid(a, path=f, frame=frame)
@@ -488,6 +506,8 @@ def cmd_demo(a):
         return 2
     droot = resources.files("hexmb") / "data" / "cap" / "SCD0000101"
     files = sorted((str(p) for p in droot.iterdir() if str(p).endswith(".exnode")), key=_natural_key)
+    if not 2 <= a.phases <= len(files):
+        raise ValueError(f"--phases must be between 2 and {len(files)}")
     files = files[: a.phases]
     out = Path(a.out)
     print(f"demo: Cardiac Atlas SCD0000101, {len(files)} phases (CC0), template {a.template}")
