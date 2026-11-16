@@ -253,6 +253,9 @@ def build_phases(grids, frame, builder="conformal", cfg=None, auto_trim=True, ve
     configuration used), ``adjustments`` (strings) and ``degenerate``
     (phase -> reason)."""
     grids = [np.asarray(g, float) for g in grids]
+    if not grids or any(G.ndim != 3 or G.shape[-1] != 3 or not np.isfinite(G).all() for G in grids):
+        raise ValueError("phase grids must be non-empty, finite (NL, NT, 3) arrays")
+
     if cfg is None:
         cfg = ConformalLVConfig() if builder == "conformal" else {}
     adjustments, degenerate = [], {}
@@ -480,8 +483,24 @@ def build_lv_motion(grids, times, builder="conformal", cfg=None, reference="es",
         raise ValueError("a moving mesh needs at least two phases")
     if len(grids) != len(times):
         raise ValueError("one time per grid")
+    if times.ndim != 1 or not np.isfinite(times).all() or np.any(times < 0):
+        raise ValueError("times must be a finite, non-negative one-dimensional sequence")
+    if period is not None and (not np.isfinite(period) or period <= 0):
+        raise ValueError("period must be finite and positive")
+    if not np.isfinite(scale) or scale <= 0:
+        raise ValueError("scale must be finite and positive")
+    if interpolation not in ("spline", "linear"):
+        raise ValueError("interpolation must be spline or linear")
+    if reference not in ("es", "ed"):
+        if (not isinstance(reference, (int, np.integer)) or isinstance(reference, bool)
+                or not 0 <= reference < len(grids)):
+            raise ValueError(f"reference must be es, ed, or an index in 0..{len(grids) - 1}")
     if np.any(np.diff(times) <= 0):
         raise ValueError("times must be strictly increasing")
+    for G in grids:
+        if (G.ndim != 3 or G.shape[-1] != 3 or G.shape[0] < 3
+                or G.shape[1] < 4 or G.shape[1] % 4 or not np.isfinite(G).all()):
+            raise ValueError("grids must be finite (levels>=3, angles>=4 divisible by 4, 3)")
     if len({g.shape for g in grids}) != 1:
         raise ValueError("all grids must have the same (NL, NT, 3) shape")
     if period is not None and period <= times[-1]:
@@ -491,6 +510,15 @@ def build_lv_motion(grids, times, builder="conformal", cfg=None, reference="es",
         from ..io.cap import surface_frame
         axis, e1, e2, mu = surface_frame(grids[0])
         frame = (axis, e1, e2, mu)
+
+    axis, e1, e2, mu = (np.asarray(v, float) for v in frame)
+    vectors = np.asarray([e1, e2, axis])
+    if (vectors.shape != (3, 3) or mu.shape != (3,) or not np.isfinite(vectors).all()
+            or not np.isfinite(mu).all()
+            or not np.allclose(vectors @ vectors.T, np.eye(3), atol=1e-6)
+            or np.linalg.det(vectors) <= 0):
+        raise ValueError("frame requires right-handed orthonormal e1, e2, axis and a finite centroid")
+    frame = (axis, e1, e2, mu)
 
     if prebuilt is None:
         b = build_phases(grids, frame, builder, cfg, auto_trim=auto_trim, verbose=verbose, metrics=metrics)

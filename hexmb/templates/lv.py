@@ -46,10 +46,10 @@ class LVChamberTemplate:
         d = xyz - self.mu
         ang = np.degrees(np.arctan2(d @ self.e2, d @ self.e1)) % 360.0
         a0, a1 = self.aortic_deg
-        if a0 <= ang <= a1:
+        if (a0 <= ang <= a1) if a0 <= a1 else (ang >= a0 or ang <= a1):
             return "outlet1"
         m0, m1 = self.mitral_deg
-        if m0 <= ang <= m1:
+        if (m0 <= ang <= m1) if m0 <= m1 else (ang >= m0 or ang <= m1):
             return "inlet"
         return "wall"
 

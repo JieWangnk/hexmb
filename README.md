@@ -2,9 +2,11 @@
 
 [![PyPI](https://img.shields.io/pypi/v/hexmb)](https://pypi.org/project/hexmb/) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22834026.svg)](https://doi.org/10.5281/zenodo.22834026)
 
-`hexmb` builds all-hexahedral **O-grid (butterfly)** meshes for CFD and writes
-them directly as an OpenFOAM `constant/polyMesh`. An O-grid is a square "H" core
-block surrounded by boundary-fitted petal blocks — all-hex, boundary-conforming,
+`hexmb` builds **O-grid (butterfly)** meshes for CFD and writes them directly
+as an OpenFOAM `constant/polyMesh`. The single-resolution templates are all-hex;
+the default conformal LV template includes split-hex polyhedra at resolution
+transitions. An O-grid is a square "H" core block surrounded by boundary-fitted
+petal blocks — boundary-conforming,
 and with **no singular polar axis**, so it can be rebuilt as one iso-topological
 mesh through large deformation (a beating heart chamber) without remeshing.
 
@@ -74,6 +76,26 @@ needed to run `checkMesh`, move the mesh, or run a solver on the output.
 No install at all: open
 [`examples/hexmb_quickstart.ipynb`](examples/hexmb_quickstart.ipynb) in Colab.
 
+## Trying the current development version
+
+The latest anatomical-frame and input-review changes are newer than the 0.2.1
+PyPI release. To test the GitHub version in a fresh virtual environment:
+
+```bash
+pip install "hexmb[all] @ git+https://github.com/JieWangnk/hexmb.git"
+hexmb demo -o trial_demo --render --metrics
+hexmb verify -o trial_demo/lv_moving
+```
+
+The demo requires no private data. `trial_demo/demo.png` shows the surface and
+volume curve, `lv_moving/motion_quality.csv` records phase quality, and
+`lv_moving/hexmb_frame.json` records orientation. OpenFOAM is optional for mesh
+creation; `verify` explicitly reports when its external `checkMesh` check is
+unavailable. Phase-wise checks do not prove validity between displacement-table
+samples. Review trimming and filled phases before using a case for research.
+Corresponding mesh indices are a geometric parameterisation, not measured
+material-point tracking or a representation of ventricular torsion.
+
 ## Quick start
 
 Every command prints a quality line and says what it wrote. The outputs below are
@@ -141,6 +163,12 @@ the bundled heart's 20 phases as STL files to try this route on.
 hexmb motion --surfaces phase_*.vtk --period 0.9 -o case_moving      # files sorted naturally
 hexmb motion --surfaces phases.npz --times 0,0.05,0.1,... -o case_moving   # or one npz with 'grids'
 ```
+For a multi-phase NPZ, `grids` has shape `(phases, levels, angles, 3)` and
+`--units` applies to all coordinates. Optional `axis`, `e1`, `e2` must be supplied
+together as a right-handed orthonormal frame; optional `mu` uses the source units.
+Times are finite, non-negative and strictly increasing, with the cycle period
+larger than the last phase time. Use the same scan origin within a sequence.
+
 Every phase is cast with the frame of the first file so the grids correspond
 point-for-point, meshed with the same template, gated, and written as in the
 demo. `--reference ed` builds the mesh on the largest cavity instead of the
@@ -420,7 +448,7 @@ same vertices at every phase and list the hexahedral volume as future work;
 Kong and Shadden (IEEE TMI 2023) learn the deformation of a whole-heart
 template to a patient's images. `hexmb` is the automated, open version of the
 structured route: it reads such a model, a segmentation mask or an STL, builds
-the all-hexahedral flow mesh of the cavity inside it at any resolution with a
+a hex / split-hex flow mesh of the cavity inside it with a
 coarse apex cap instead of a tapered pole, rebuilds it with the same
 connectivity at every phase with no lifting equation, gates each phase, and
 writes the OpenFOAM case with the metrics, the export and the flow case a CFD
@@ -447,7 +475,7 @@ connectivity across phases:
    intervention frequency, quality distributions and volume preservation,
    distinguishing original inputs from trimmed or interpolated cases.
 
-Release packaging, a PyPI release and a Zenodo DOI support this work. Generic
+Release packaging, PyPI distribution and the Zenodo archive support this work. Generic
 static cavities are a secondary utility; junction meshing and a snappyHexMesh
 backend are not current development priorities.
 

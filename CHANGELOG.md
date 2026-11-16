@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Review fixes: multi-phase NPZ motion inputs now honour `--units`, preserve an
+  optional saved frame and reject malformed/empty arrays. Motion rejects
+  non-finite coordinates/times, invalid reference indices, periods, scales and
+  interpolation modes before meshing or touching an existing case.
+- Wrapped angular valve sectors now work in the single O-grid template as well
+  as the conformal template. Non-finite CLI landmarks/sectors and invalid demo
+  phase counts are rejected.
+- README distinguishes ordinary hexes from split-hex polyhedra and provides a
+  GitHub-version trial route, explicitly separate from the published wheel.
+
 - **Anatomical frame.** Cardiac Atlas models now set the in-plane axes from
   each model's own transformation matrix (`io/cap.py`): e1 points toward the
   right ventricle (septal), so the same cell index sits at the same anatomical
