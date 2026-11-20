@@ -301,6 +301,27 @@ def endo_grid_from_mesh(mesh, apex=None, base=None, NL=40, NT=56, recentre=2,
         shift = cen - origins
         shift -= np.outer(shift @ axis, axis)          # move stations in-plane only
         origins = _smooth_path(origins + shift, iters=2)
+    # The two dome stations (rows 1-2 of the grid, t < apex_offset) only refine the tip.  On a blunt
+    # or flat, tilted tip (a motion-table surface closed by a fan over a wide end ring) their slices
+    # are thin slivers with the axis point at an edge, and the cast fails there while every uniform
+    # station is fine.  Such dome rows are filled from the first good station above them as a
+    # paraboloid tip (radius ~ sqrt(t), centre on the line to the apex) and reported in
+    # info["dome_filled_levels"].  A failure at any uniform station still raises.
+    dome_filled = []
+    bad_dome = [k for k in (0, 1) if miss[k] > NT // 4]
+    if bad_dome:
+        ref = max(bad_dome) + 1
+        if miss[ref] <= NT // 4:
+            c_ref = rings[ref].mean(0)
+            for k in range(ref):
+                f = t[k] / t[ref]
+                rings[k] = apex + f * (c_ref - apex) + np.sqrt(f) * (rings[ref] - c_ref)
+                miss[k] = 0
+                dome_filled.append(k)
+            import warnings
+            warnings.warn(f"the tip stations at fraction(s) {np.round(t[dome_filled], 3).tolist()} could "
+                          "not be cast (blunt or flat tip); filled as a paraboloid from the station at "
+                          f"{t[ref]:.3f}", stacklevel=2)
     too_many = np.where(miss > NT // 4)[0]
     if too_many.size:
         raise ValueError(f"more than NT/4 rays had to be interpolated at level(s) {too_many.tolist()} "
@@ -314,7 +335,8 @@ def endo_grid_from_mesh(mesh, apex=None, base=None, NL=40, NT=56, recentre=2,
     mu = G.reshape(-1, 3).mean(0)
     miss = np.concatenate([[0], miss.astype(int), [0]])
     info = {"apex": apex, "base": base, "landmarks": kind, "axis_length": L,
-            "interpolated_rays_per_level": miss, "origins": origins}
+            "interpolated_rays_per_level": miss, "origins": origins,
+            "dome_filled_levels": [k + 1 for k in dome_filled]}
     return G, axis, e1, e2, mu, info
 
 

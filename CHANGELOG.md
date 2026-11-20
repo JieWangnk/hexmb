@@ -26,6 +26,15 @@
   also motion-table times, so the last snapshot of each run was missing.
   `Allrun` uses an OpenFOAM already on the `PATH` (a cluster module) before
   `$HEXMB_FOAM_BASHRC`, `$WM_PROJECT_DIR` or `/opt/openfoam12`.
+- **Blunt or flat tips.** A surface whose apex is a wide flat end (a motion
+  table that is open at the apex, closed by a fan over its end ring) could stop
+  the surface reader at one of the two thin tip stations ("more than NT/4 rays
+  had to be interpolated") while every other station was fine. Those tip rows
+  are now filled from the first good station as a paraboloid tip (radius
+  proportional to the square root of the distance from the apex), with a
+  warning and `dome_filled_levels` in the reader's info; a failure at any other
+  station still stops the run. On a 25-phase volunteer surface the filled
+  phase keeps 99.6 % of the surface volume. Test in `tests/test_surface.py`.
 - README and `CITATION.cff` carry the PyPI install line and the Zenodo DOIs.
 
 ## 0.2.1 (13 November 2026)

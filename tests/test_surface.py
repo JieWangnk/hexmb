@@ -143,3 +143,46 @@ def test_slice_reader_on_a_thick_short_axis_stack(tmp_path):
     assert info2["method"] == "marching"
     _, _, _, _, _, info3 = grid_from_mask(f2, NL=24, NT=32, method="slices")   # the route can be forced
     assert info3["method"] == "slices" and info3["n_slices"] > 20
+
+
+def _flat_tip_surface(f0=0.12, tilt_deg=15.0, zig=1.0, NL=32, NT=48, length=80.0, radius=25.0):
+    """Closed LV surface with a wide, tilted, ragged flat tip: the shape of a motion-table grid
+    (open at the apex) closed by a fan over its end ring."""
+    ang = np.linspace(0, 2 * np.pi, NT, endpoint=False)
+    G = np.zeros((NL, NT, 3))
+    for i, f in enumerate(np.linspace(f0, 1.0, NL)):
+        r = radius * np.sqrt(1 - (1 - f) ** 2)
+        G[i, :, 0], G[i, :, 1], G[i, :, 2] = r * np.cos(ang), r * np.sin(ang), f * length
+    G[0, :, 2] += np.tan(np.radians(tilt_deg)) * G[0, :, 0] + zig * (-1.0) ** np.arange(NT)
+    tri = []
+    for i in range(NL - 1):
+        for j in range(NT):
+            a, b, c, d = G[i, j], G[i, (j + 1) % NT], G[i + 1, (j + 1) % NT], G[i + 1, j]
+            tri += [(a, b, c), (a, c, d)]
+    ap = G[0].mean(0) - (G[1].mean(0) - G[0].mean(0)) / 3.0
+    bc = G[-1].mean(0)
+    for j in range(NT):
+        tri += [(ap, G[0, (j + 1) % NT], G[0, j]), (bc, G[-1, j], G[-1, (j + 1) % NT])]
+    V = np.array(tri).reshape(-1, 3)
+    m = trimesh.Trimesh(V, np.arange(len(V)).reshape(-1, 3), process=True)
+    m.fix_normals()
+    return m
+
+
+def test_flat_tip_fills_the_dome_stations_and_still_rejects_bad_body_stations():
+    from hexmb.templates.conformal_lv import grid_volume
+    m = _flat_tip_surface()
+    assert m.is_watertight
+    with pytest.warns(UserWarning, match="tip stations"):
+        G, axis, e1, e2, mu, info = endo_grid_from_mesh(m, NL=90, NT=128)
+    assert info["dome_filled_levels"] == [1]
+    assert np.isfinite(G).all() and G.shape == (90, 128, 3)
+    assert abs(grid_volume(G) / m.volume - 1) < 0.02            # the paraboloid tip costs < 2 % of the cavity
+    # a ragged tip that also breaks the first uniform stations is still an error
+    with pytest.raises(ValueError, match="more than NT/4 rays"):
+        endo_grid_from_mesh(_flat_tip_surface(f0=0.15, tilt_deg=20.0, zig=3.0), NL=90, NT=128)
+    # a smooth surface needs no fill
+    sph = trimesh.creation.icosphere(subdivisions=3)
+    sph.vertices = sph.vertices * np.array([20.0, 25.0, 45.0])
+    *_, info2 = endo_grid_from_mesh(sph, NL=24, NT=32)
+    assert info2["dome_filled_levels"] == []

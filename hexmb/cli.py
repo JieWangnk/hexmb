@@ -259,6 +259,8 @@ def _load_grid(a, path=None, frame=None):
         line += (f", landmarks {info['landmarks']}: apex ({ap[0]:.1f} {ap[1]:.1f} {ap[2]:.1f}) "
                  f"base ({ba[0]:.1f} {ba[1]:.1f} {ba[2]:.1f}), length {info['axis_length']:.1f} mm, "
                  f"interpolated rays max {int(info['interpolated_rays_per_level'].max())}/level")
+    if info.get("dome_filled_levels"):
+        line += f", tip rows {info['dome_filled_levels']} filled as a paraboloid (blunt tip)"
     if info.get("method") == "slices":
         line += (f", {info['n_slices']} slices of {info['slice_spacing_mm']:.1f} mm read slice by slice, "
                  f"length {info['axis_length']:.1f} mm")
